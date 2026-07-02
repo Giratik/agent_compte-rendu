@@ -1,0 +1,4 @@
+crewai>=0.115.0
+streamlit>=1.38.0
+litellm>=1.55.0
+python-docx>=1.1.0

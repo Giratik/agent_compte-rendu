@@ -1,0 +1,32 @@
+## 👥 Participants
+* **Arnaud :** Participant à la réunion.
+* **Pascal :** Participant à la réunion.
+* **Olivier :** Participant à la réunion.
+* **Christophe :** Participant à la réunion.
+* **Mathieu Dujardin :** Nom mentionné en fin de transcript (statut de présence non confirmé pour cette réunion).
+
+*(Aucun absent ou excusé n'est explicitement mentionné dans le compte-rendu.)*
+
+## 🎯 Objectif de la réunion
+Le but principal de cette réunion était d'évaluer et de comparer les outils d'intelligence artificielle disponibles pour la retranscription et l'analyse de réunions enregistrées. Les participants ont mené des tests comparatifs avec plusieurs plateformes (telles que ChatGPT, Claude ou AWS) afin de déterminer la solution la plus fiable pour transformer un contenu audio/vidéo en comptes-rendus structurés, allant au-delà de la simple transcription textuelle. Le contexte est donc une recherche technologique approfondie visant à identifier l'outil le plus performant et pérenne pour optimiser la prise de notes et l'extraction d'informations clés lors des réunions. En conséquence, les actions décidées consistent à organiser des démonstrations commerciales avec plusieurs fournisseurs potentiels afin de comparer leurs fonctionnalités en conditions réelles.
+
+## ✅ Décisions prises
+*   La prochaine réunion de travail est fixée au 27 [du mois en cours], dans l'après-midi (entre 14h30 et 15h30).
+*   Il a été décidé que la prochaine plénière n'aura pas d'objectif de résultat formel, afin de maintenir une approche exploratoire.
+*   L'action principale sera de recevoir les commerciaux des différents outils testés (ChatGPT, Claude, etc.) pour leur demander l'ouverture de comptes de test plutôt qu'un engagement financier immédiat.
+*   Une grille d'analyse ou une liste structurée de questions doit être élaborée en amont afin de pouvoir comparer efficacement les différentes solutions et de garantir un benchmark cohérent entre les fournisseurs.
+*   Il est convenu de prendre contact avec les fournisseurs des outils testés (notamment PlotNote, l'outil de capture audio de Pascal) pour organiser ces démonstrations commerciales.
+
+## 📋 Actions à faire
+- Organiser des démonstrations commerciales avec les fournisseurs des outils testés (PlotNote, etc.) et demander l'ouverture de comptes de test pour éviter un engagement financier immédiat — Responsable: Mathieu Dujardin — Échéance: Non précisée
+- Préparer une liste structurée de questions ou une grille d'analyse comparative (benchmark) à adresser aux fournisseurs pour comparer les outils — Responsable: Tous les participants — Échéance: Avant la prochaine réunion
+- Tester plusieurs outils/IA en utilisant le même contenu source (vidéo/audio) afin de comparer leurs performances de retranscription et d'analyse — Responsable: Tous les participants — Échéance: Non précisée
+- Tenir la prochaine réunion de travail pour présenter les résultats des tests et les fournisseurs rencontrés — Responsable: Tous les participants — Échéance: Mercredi 27 (entre 14h30 et 15h30)
+
+## ⚠️ Points de blocage
+* **Méthodologie de test et comparabilité :** Il n'y a pas de protocole standardisé pour les tests. Les participants doivent déterminer si un seul type de contenu source (vidéo, audio pur, ou texte) sera utilisé pour tous les outils afin d'assurer une comparaison équitable des performances (fidélité de la retranscription, identification des locuteurs, etc.).
+* **Critères de sélection et pondération :** Il n'y a pas de consensus sur le critère principal de choix. Les participants doivent décider si l'outil idéal est celui qui offre la meilleure *précision*, le coût le plus bas, la simplicité d'utilisation (ex: un simple enregistreur téléphonique), ou la capacité à générer des *résumés structurés* complexes (au-delà de la simple transcription).
+* **Gestion du cycle de vie technologique et pérennité :** Le risque que les outils testés soient éphémères ("rupture technologique") est soulevé. Il est nécessaire d'intégrer dans l'analyse des fournisseurs une évaluation de leur stabilité financière ou de leur modèle économique pour garantir la pérennité de l'outil choisi.
+* **Intégration dans un environnement hybride :** La question de l'utilisation de ces outils lors de réunions mixtes (présentiel + Teams/Zoom) reste ouverte et complexe, car les solutions actuelles ne sont pas garanties pour capter correctement le son ou la parole provenant de différentes sources simultanément.
+* **Définition du livrable final :** Bien que l'objectif soit un compte-rendu structuré (points clés, actions à mener), il y a une ambiguïté sur le niveau d'effort requis par les outils pour passer de la simple retranscription brute au format "compte-rendu formel" avec des éléments actionnables.
+* **Délais et portée du sourcing :** Bien qu'il soit décidé de ne pas fixer de délai strict, il y a un risque de dispersion si l'équipe n'élabore pas rapidement une liste limitée d'entreprises à contacter pour éviter de se noyer dans trop de présentations commerciales.
