@@ -5,26 +5,22 @@ Chaque agent est spécialisé sur UN point précis :
   - Participants
   - Objectif de la réunion
   - Points clés abordés
+  - Outils & chiffres mentionnés
   - Décisions prises
   - Actions à faire (next steps)
   - Points de blocage / désaccords
 
 Les agents sont indépendants les uns des autres (aucun ne dépend de la sortie
-d'un autre), ce qui permet de les lire séparément dans l'UI Streamlit.
+d'un autre), ce qui permet de les lire séparément dans l'UI Streamlit et de
+les activer/désactiver individuellement.
+
+Un 7e agent, le Rédacteur final, consolide les analyses activées en un JSON
+structuré prêt pour l'export Word.
 """
 
-from crewai import Agent, Task, Crew, Process, LLM
+import functools
 
-# Agent configuration - allows enabling/disabling individual agents
-DEFAULT_AGENT_CONFIG = {
-    "participants": True,
-    "objectif": True,
-    "points_cles": True,
-    "decisions": True,
-    "actions": True,
-    "risques": True,
-    "redacteur": True
-}
+from crewai import Agent, Task, Crew, Process, LLM
 
 
 def build_llm(model_name: str, base_url: str, temperature: float = 0.1) -> LLM:
@@ -49,6 +45,58 @@ def _make_agent(role: str, goal: str, backstory: str, llm: LLM) -> Agent:
     )
 
 
+# --- Registre des 7 agents d'analyse (source de vérité unique pour l'ordre,
+#     les labels UI et les descriptions affichées dans la config) ---
+
+AGENT_ORDER = ["participants", "objectif", "points_cles", "outils_chiffres", "decisions", "actions", "risques"]
+
+AGENT_META = {
+    "participants": {
+        "label": "👥 Participants",
+        "name": "Participants",
+        "description": "Identifie les personnes présentes (et absentes/excusées).",
+    },
+    "objectif": {
+        "label": "🎯 Objectif de la réunion",
+        "name": "Objectif",
+        "description": "Résume en quelques phrases le but et le contexte de la réunion.",
+    },
+    "points_cles": {
+        "label": "🔑 Points clés abordés",
+        "name": "Points clés",
+        "description": "Liste les principaux sujets discutés, décidés ou non.",
+    },
+    "outils_chiffres": {
+        "label": "🛠️ Outils & chiffres",
+        "name": "Outils & chiffres",
+        "description": "Relève les outils cités et relie chaque chiffre pertinent à l'outil concerné.",
+    },
+    "decisions": {
+        "label": "✅ Décisions prises",
+        "name": "Décisions",
+        "description": "Extrait les décisions clairement actées pendant la réunion.",
+    },
+    "actions": {
+        "label": "📋 Actions à faire",
+        "name": "Actions",
+        "description": "Liste les tâches à faire, avec responsable et échéance si précisés.",
+    },
+    "risques": {
+        "label": "⚠️ Points de blocage",
+        "name": "Points de blocage",
+        "description": "Repère désaccords non résolus, risques et questions ouvertes.",
+    },
+}
+
+REDACTION_LABEL = "📝 Compte-rendu formaté (JSON)"
+
+# Config par défaut : tous les agents activés, y compris le rédacteur
+DEFAULT_AGENT_CONFIG = {**{k: True for k in AGENT_ORDER}, "redacteur": True}
+
+# Labels indexés par clé (utile pour app.py, y compris pour les callbacks de progression)
+TASK_LABELS = {**{k: v["label"] for k, v in AGENT_META.items()}, "redacteur": REDACTION_LABEL}
+
+
 REDACTION_JSON_SCHEMA = (
     "{\n"
     '  "titre": "titre court du compte-rendu",\n'
@@ -57,6 +105,11 @@ REDACTION_JSON_SCHEMA = (
     '  "absents": ["..."],\n'
     '  "objectif": "paragraphe résumant le but de la réunion",\n'
     '  "points_cles": ["point clé 1", "point clé 2"],\n'
+    '  "outils_et_chiffres": [\n'
+    '    {"outil": "nom de l\'outil/logiciel/technologie", '
+    '"chiffres_associes": ["chiffre lié à cet outil, avec son contexte", "..."]}\n'
+    "  ],\n"
+    '  "autres_chiffres": ["chiffre clé non lié à un outil précis, avec son contexte", "..."],\n'
     '  "decisions": ["décision 1", "décision 2"],\n'
     '  "actions": [\n'
     '    {"action": "...", "responsable": "...", "echeance": "..."}\n'
@@ -65,15 +118,46 @@ REDACTION_JSON_SCHEMA = (
     "}"
 )
 
-REDACTION_INSTRUCTIONS = (
-    "Consolide ces analyses en UN SEUL objet JSON, et RIEN D'AUTRE (pas de "
-    "texte avant/après, pas de balises markdown ```). Respecte EXACTEMENT "
-    "ce schéma, avec des guillemets doubles et sans virgule finale superflue "
-    "(JSON strictement valide) :\n\n"
-    f"{REDACTION_JSON_SCHEMA}\n\n"
-    "Si une information est absente, utilise une chaîne vide ou une liste "
-    "vide plutôt que d'inventer. N'écris strictement rien en dehors de ce JSON."
-)
+def build_redaction_instructions(verbosity: str = "concis") -> str:
+    """
+    `verbosity` : "concis" (défaut) ou "detaille". Contrôle le niveau de
+    détail demandé au rédacteur lors de la consolidation en JSON.
+    """
+    base = (
+        "Consolide ces analyses en UN SEUL objet JSON, et RIEN D'AUTRE (pas de "
+        "texte avant/après, pas de balises markdown ```). Respecte EXACTEMENT "
+        "ce schéma, avec des guillemets doubles et sans virgule finale superflue "
+        "(JSON strictement valide) :\n\n"
+        f"{REDACTION_JSON_SCHEMA}\n\n"
+    )
+
+    if verbosity == "detaille":
+        style = (
+            "IMPORTANT — niveau de détail attendu : NE COMPRESSE PAS excessivement "
+            "le contenu des analyses fournies. Pour chaque élément (point clé, "
+            "décision, action, point de blocage...), reformule en 1 à 2 phrases "
+            "complètes qui conservent le contexte et les nuances de l'analyse "
+            "source, plutôt qu'en fragment télégraphique de quelques mots. Ne "
+            "fusionne JAMAIS deux idées distinctes de l'analyse source en un seul "
+            "point du JSON — un point source doit donner un point JSON, pas un "
+            "résumé qui en absorbe plusieurs. Si une analyse source contient un "
+            "exemple concret, un nom propre ou un chiffre, conserve-le dans le "
+            "JSON plutôt que de le généraliser. L'objectif est de restructurer "
+            "l'information, pas de la condenser.\n\n"
+        )
+    else:
+        style = (
+            "Niveau de détail attendu : reste synthétique — une phrase courte et "
+            "claire par élément suffit, sans détails superflus.\n\n"
+        )
+
+    tail = (
+        "Si une information est absente ou qu'aucune analyse ne la couvre, "
+        "utilise une chaîne vide ou une liste vide plutôt que d'inventer. "
+        "N'écris strictement rien en dehors de ce JSON."
+    )
+
+    return base + style + tail
 
 
 def _make_redacteur_agent(llm: LLM) -> Agent:
@@ -86,35 +170,41 @@ def _make_redacteur_agent(llm: LLM) -> Agent:
         backstory=(
             "Tu es rédacteur professionnel de comptes-rendus. Tu ne réanalyses "
             "pas le transcript brut : tu reprends les analyses déjà produites "
-            "par tes collègues (participants, objectif, points clés, décisions, "
-            "actions, points de blocage), tu corriges le style et la cohérence, "
-            "et tu restitues le tout dans un format STRICTEMENT structuré."
+            "par tes collègues (celles qui sont disponibles — certaines "
+            "peuvent être absentes si l'utilisateur les a désactivées), tu "
+            "corriges le style et la cohérence, et tu restitues le tout dans "
+            "un format STRICTEMENT structuré."
         ),
         llm=llm,
     )
 
 
-def build_redaction_retry_crew(analyses: dict, model_name: str, base_url: str) -> Crew:
+def build_redaction_retry_crew(
+    analyses: dict, model_name: str, base_url: str, verbosity: str = "concis"
+) -> Crew:
     """
     Relance UNIQUEMENT l'agent rédacteur, à partir des analyses déjà
     produites (pas besoin de re-router tout le transcript dans les autres
-    agents). Utile quand seule l'étape de mise en JSON a échoué.
+    agents). Utile quand seule l'étape de mise en JSON a échoué, ou pour
+    redemander une version plus étoffée (`verbosity="detaille"`).
 
-    `analyses` attend les clés : participants, objectif, points_cles, decisions, actions, risques
+    `analyses` : dict dont les clés sont un sous-ensemble de AGENT_ORDER
+    (seuls les agents activés lors du run initial y figurent).
     """
     llm = build_llm(model_name, base_url)
     redacteur_agent = _make_redacteur_agent(llm)
 
+    sections = []
+    for key in AGENT_ORDER:
+        if key in analyses:
+            sections.append(f"--- {AGENT_META[key]['name']} ---\n{analyses[key]}")
+
     description = (
         "Voici les analyses déjà produites par d'autres agents sur le "
         "transcript d'une réunion :\n\n"
-        f"--- Participants ---\n{analyses.get('participants', '')}\n\n"
-        f"--- Objectif ---\n{analyses.get('objectif', '')}\n\n"
-        f"--- Points clés abordés ---\n{analyses.get('points_cles', '')}\n\n"
-        f"--- Décisions ---\n{analyses.get('decisions', '')}\n\n"
-        f"--- Actions ---\n{analyses.get('actions', '')}\n\n"
-        f"--- Points de blocage ---\n{analyses.get('risques', '')}\n\n"
-        + REDACTION_INSTRUCTIONS
+        + "\n\n".join(sections)
+        + "\n\n"
+        + build_redaction_instructions(verbosity)
     )
 
     task_redaction = Task(
@@ -177,218 +267,305 @@ def build_json_fix_crew(broken_json: str, error_report: str, model_name: str, ba
     return Crew(agents=[correcteur_agent], tasks=[task], process=Process.sequential, verbose=False)
 
 
-def build_crew(transcript: str, model_name: str, base_url: str, agent_config: dict = None) -> Crew:
-    """Build the crew with optional agent configuration to enable/disable specific agents."""
-    if agent_config is None:
-        agent_config = DEFAULT_AGENT_CONFIG
+def _build_agent_and_task(key: str, llm: LLM, common_instructions: str) -> tuple[Agent, Task]:
+    """Construit l'agent et la task pour UNE clé de AGENT_ORDER."""
+
+    if key == "participants":
+        agent = _make_agent(
+            role="Analyste des participants",
+            goal="Identifier avec précision toutes les personnes présentes à la réunion",
+            backstory=(
+                "Tu es spécialisé dans la lecture de comptes-rendus de réunion en "
+                "français. Tu repères les noms propres, fonctions et éventuels "
+                "absents/excusés mentionnés dans le texte."
+            ),
+            llm=llm,
+        )
+        task = Task(
+            description=(
+                common_instructions
+                + "Liste toutes les personnes présentes (et si mentionné, les "
+                "absents/excusés). Réponds sous forme de liste à puces avec, si "
+                "possible, le nom et la fonction. Si l'information n'est pas "
+                "dans le texte, dis-le explicitement plutôt que d'inventer."
+            ),
+            expected_output="Une liste à puces des participants (et absents éventuels).",
+            agent=agent,
+        )
+        return agent, task
+
+    if key == "objectif":
+        agent = _make_agent(
+            role="Analyste de l'objectif",
+            goal="Déterminer le but et le contexte de la réunion",
+            backstory=(
+                "Tu es expert pour synthétiser en 2-3 phrases pourquoi une réunion "
+                "a eu lieu et quel était son ordre du jour, à partir d'un transcript "
+                "souvent informel et en français."
+            ),
+            llm=llm,
+        )
+        task = Task(
+            description=(
+                common_instructions
+                + "Rédige en 2 à 4 phrases le but principal de cette réunion et "
+                "son contexte."
+            ),
+            expected_output="Un court paragraphe décrivant l'objectif de la réunion.",
+            agent=agent,
+        )
+        return agent, task
+
+    if key == "points_cles":
+        agent = _make_agent(
+            role="Analyste des points clés",
+            goal="Identifier les principaux sujets et points abordés pendant la réunion",
+            backstory=(
+                "Tu fais une synthèse des thèmes et sujets réellement discutés "
+                "pendant la réunion, qu'ils aient débouché ou non sur une décision. "
+                "Tu te concentres sur le CONTENU des échanges (de quoi a-t-on "
+                "parlé), à ne pas confondre avec les décisions actées ou les "
+                "actions à faire, qui sont traitées par d'autres agents."
+            ),
+            llm=llm,
+        )
+        task = Task(
+            description=(
+                common_instructions
+                + "Liste, sous forme de puces, les principaux sujets et points "
+                "abordés pendant la réunion — le contenu des échanges, pas "
+                "seulement les décisions ou actions qui en découlent. Vise entre "
+                "3 et 8 points, formulés en une phrase courte chacun."
+            ),
+            expected_output="Une liste à puces des points clés / sujets abordés pendant la réunion.",
+            agent=agent,
+        )
+        return agent, task
+
+    if key == "outils_chiffres":
+        agent = _make_agent(
+            role="Analyste des outils et chiffres",
+            goal=(
+                "Relever les outils/technologies cités et RELIER chaque chiffre "
+                "pertinent à l'outil auquel il se rapporte"
+            ),
+            backstory=(
+                "Tu es attentif aux outils, logiciels, plateformes ou "
+                "technologies nommés dans une réunion, et surtout à leur mettre "
+                "en relation avec les chiffres qui les concernent directement "
+                "(coût, durée d'usage, nombre d'utilisateurs, performance, "
+                "volume de données...). Tu ne listes JAMAIS un chiffre isolé "
+                "d'un outil sans préciser à quoi il se rapporte. Tu es aussi "
+                "sélectif : tu ignores les chiffres sans intérêt métier "
+                "(horodatages, numéros de slide, décomptes de tours de parole) "
+                "et ne gardes que ceux qui aident à comprendre une décision ou "
+                "un enjeu réel."
+            ),
+            llm=llm,
+        )
+        task = Task(
+            description=(
+                common_instructions
+                + "Identifie les outils/logiciels/technologies mentionnés, et "
+                "pour CHACUN, relie-le explicitement aux chiffres qui le "
+                "concernent (coût, durée d'utilisation, nombre d'utilisateurs, "
+                "taux d'adoption, performance...). Ne retiens que des chiffres "
+                "pertinents pour comprendre un enjeu ou une décision — ignore "
+                "les chiffres sans intérêt (heures de réunion, numérotation, "
+                "décomptes anecdotiques).\n\n"
+                "Réponds avec ces deux titres exacts :\n\n"
+                "Outils et chiffres associés :\n"
+                "- [Nom de l'outil] : [chiffre(s) qui s'y rapportent, avec leur "
+                "contexte — ou 'aucun chiffre associé' si l'outil est mentionné "
+                "sans donnée chiffrée]\n\n"
+                "Autres chiffres clés (non liés à un outil) :\n"
+                "- [chiffre pertinent avec son contexte]\n\n"
+                "Si aucun outil n'est mentionné, écris 'Aucun outil mentionné' "
+                "sous le premier titre. Si aucun autre chiffre pertinent n'est "
+                "identifiable, écris 'Aucun' sous le second."
+            ),
+            expected_output=(
+                "Deux listes sous les titres 'Outils et chiffres associés' (un "
+                "outil par ligne avec ses chiffres liés) et 'Autres chiffres "
+                "clés' (chiffres pertinents non rattachés à un outil)."
+            ),
+            agent=agent,
+        )
+        return agent, task
+
+    if key == "decisions":
+        agent = _make_agent(
+            role="Analyste des décisions",
+            goal="Extraire toutes les décisions actées pendant la réunion",
+            backstory=(
+                "Tu distingues rigoureusement ce qui a été DÉCIDÉ de ce qui a "
+                "simplement été discuté ou proposé sans validation finale."
+            ),
+            llm=llm,
+        )
+        task = Task(
+            description=(
+                common_instructions
+                + "Liste, sous forme de puces, toutes les décisions clairement "
+                "actées pendant la réunion. N'inclus pas les sujets simplement "
+                "discutés sans décision finale."
+            ),
+            expected_output="Une liste à puces des décisions prises.",
+            agent=agent,
+        )
+        return agent, task
+
+    if key == "actions":
+        agent = _make_agent(
+            role="Analyste des actions",
+            goal="Lister les actions à faire (tâches), avec responsable et échéance si mentionnés",
+            backstory=(
+                "Tu identifies les 'next steps' d'une réunion : qui doit faire "
+                "quoi, et pour quand, même si l'information est implicite dans "
+                "le texte."
+            ),
+            llm=llm,
+        )
+        task = Task(
+            description=(
+                common_instructions
+                + "Liste les actions à faire sous la forme : "
+                "'- [Action] — Responsable: [nom ou \"non précisé\"] — "
+                "Échéance: [date ou \"non précisée\"]'."
+            ),
+            expected_output="Une liste à puces des actions avec responsable et échéance.",
+            agent=agent,
+        )
+        return agent, task
+
+    if key == "risques":
+        agent = _make_agent(
+            role="Analyste des points de blocage",
+            goal="Repérer les désaccords, risques ou questions restées en suspens",
+            backstory=(
+                "Tu es attentif aux tensions, désaccords non résolus, risques "
+                "évoqués ou questions ouvertes qui n'ont pas trouvé de réponse "
+                "pendant la réunion."
+            ),
+            llm=llm,
+        )
+        task = Task(
+            description=(
+                common_instructions
+                + "Liste les désaccords non résolus, risques évoqués ou "
+                "questions restées ouvertes. Si aucun n'est identifiable, "
+                "réponds simplement 'Aucun point de blocage identifié'."
+            ),
+            expected_output="Une liste à puces des points de blocage, ou une phrase indiquant qu'il n'y en a pas.",
+            agent=agent,
+        )
+        return agent, task
+
+    raise ValueError(f"Clé d'agent inconnue : {key}")
+
+
+def build_crew(
+    transcript: str,
+    model_name: str,
+    base_url: str,
+    agent_config=None,
+    on_task_complete=None,
+    verbosity: str = "concis",
+) -> Crew:
+    """
+    Construit la crew complète.
+
+    `agent_config` : dict {clé: bool} — clés parmi AGENT_ORDER + "redacteur".
+    None (par défaut) = DEFAULT_AGENT_CONFIG (tout activé).
+
+    `on_task_complete` : callback optionnel appelé synchroniquement dès
+    qu'une task se termine, signature `on_task_complete(key: str, output: TaskOutput)`.
+    Comme Process.sequential exécute les tasks une par une dans le même
+    thread, ce callback permet d'afficher une progression agent par agent
+    pendant crew.kickoff() (ex: mise à jour d'un st.status()).
+
+    `verbosity` : "concis" (défaut) ou "detaille" — contrôle le niveau de
+    détail demandé à l'agent rédacteur.
+    """
     llm = build_llm(model_name, base_url)
 
-    participants_agent = _make_agent(
-        role="Analyste des participants",
-        goal="Identifier avec précision toutes les personnes présentes à la réunion",
-        backstory=(
-            "Tu es spécialisé dans la lecture de comptes-rendus de réunion en "
-            "français. Tu repères les noms propres, fonctions et éventuels "
-            "absents/excusés mentionnés dans le texte."
-        ),
-        llm=llm,
-    )
+    if agent_config is None:
+        agent_config = DEFAULT_AGENT_CONFIG
 
-    objectif_agent = _make_agent(
-        role="Analyste de l'objectif",
-        goal="Déterminer le but et le contexte de la réunion",
-        backstory=(
-            "Tu es expert pour synthétiser en 2-3 phrases pourquoi une réunion "
-            "a eu lieu et quel était son ordre du jour, à partir d'un transcript "
-            "souvent informel et en français."
-        ),
-        llm=llm,
-    )
+    used_keys = [k for k in AGENT_ORDER if agent_config.get(k, True)]
 
-    points_cles_agent = _make_agent(
-        role="Analyste des points clés",
-        goal="Identifier les principaux sujets et points abordés pendant la réunion",
-        backstory=(
-            "Tu fais une synthèse des thèmes et sujets réellement discutés "
-            "pendant la réunion, qu'ils aient débouché ou non sur une décision. "
-            "Tu te concentres sur le CONTENU des échanges (de quoi a-t-on "
-            "parlé), à ne pas confondre avec les décisions actées ou les "
-            "actions à faire, qui sont traitées par d'autres agents."
-        ),
-        llm=llm,
-    )
-
-    decisions_agent = _make_agent(
-        role="Analyste des décisions",
-        goal="Extraire toutes les décisions actées pendant la réunion",
-        backstory=(
-            "Tu distingues rigoureusement ce qui a été DÉCIDÉ de ce qui a "
-            "simplement été discuté ou proposé sans validation finale."
-        ),
-        llm=llm,
-    )
-
-    actions_agent = _make_agent(
-        role="Analyste des actions",
-        goal="Lister les actions à faire (tâches), avec responsable et échéance si mentionnés",
-        backstory=(
-            "Tu identifies les 'next steps' d'une réunion : qui doit faire "
-            "quoi, et pour quand, même si l'information est implicite dans "
-            "le texte."
-        ),
-        llm=llm,
-    )
-
-    risques_agent = _make_agent(
-        role="Analyste des points de blocage",
-        goal="Repérer les désaccords, risques ou questions restées en suspens",
-        backstory=(
-            "Tu es attentif aux tensions, désaccords non résolus, risques "
-            "évoqués ou questions ouvertes qui n'ont pas trouvé de réponse "
-            "pendant la réunion."
-        ),
-        llm=llm,
-    )
+    if not used_keys:
+        raise ValueError(
+            "Aucun agent d'analyse activé — active au moins un agent dans la "
+            "configuration avant de lancer l'analyse."
+        )
 
     common_instructions = (
         "Voici le transcript de la réunion à analyser :\n\n"
         f"----- DEBUT TRANSCRIPT -----\n{transcript}\n----- FIN TRANSCRIPT -----\n\n"
     )
 
-    task_participants = Task(
-        description=(
-            common_instructions
-            + "Liste toutes les personnes présentes (et si mentionné, les "
-            "absents/excusés). Réponds sous forme de liste à puces avec, si "
-            "possible, le nom et la fonction. Si l'information n'est pas "
-            "dans le texte, dis-le explicitement plutôt que d'inventer."
-        ),
-        expected_output="Une liste à puces des participants (et absents éventuels).",
-        agent=participants_agent,
-    )
-
-    task_objectif = Task(
-        description=(
-            common_instructions
-            + "Rédige en 2 à 4 phrases le but principal de cette réunion et "
-            "son contexte."
-        ),
-        expected_output="Un court paragraphe décrivant l'objectif de la réunion.",
-        agent=objectif_agent,
-    )
-
-    task_points_cles = Task(
-        description=(
-            common_instructions
-            + "Liste, sous forme de puces, les principaux sujets et points "
-            "abordés pendant la réunion — le contenu des échanges, pas "
-            "seulement les décisions ou actions qui en découlent. Vise entre "
-            "3 et 8 points, formulés en une phrase courte chacun."
-        ),
-        expected_output="Une liste à puces des points clés / sujets abordés pendant la réunion.",
-        agent=points_cles_agent,
-    )
-
-    task_decisions = Task(
-        description=(
-            common_instructions
-            + "Liste, sous forme de puces, toutes les décisions clairement "
-            "actées pendant la réunion. N'inclus pas les sujets simplement "
-            "discutés sans décision finale."
-        ),
-        expected_output="Une liste à puces des décisions prises.",
-        agent=decisions_agent,
-    )
-
-    task_actions = Task(
-        description=(
-            common_instructions
-            + "Liste les actions à faire sous la forme : "
-            "'- [Action] — Responsable: [nom ou \"non précisé\"] — "
-            "Échéance: [date ou \"non précisée\"]'."
-        ),
-        expected_output="Une liste à puces des actions avec responsable et échéance.",
-        agent=actions_agent,
-    )
-
-    task_risques = Task(
-        description=(
-            common_instructions
-            + "Liste les désaccords non résolus, risques évoqués ou "
-            "questions restées ouvertes. Si aucun n'est identifiable, "
-            "réponds simplement 'Aucun point de blocage identifié'."
-        ),
-        expected_output="Une liste à puces des points de blocage, ou une phrase indiquant qu'il n'y en a pas.",
-        agent=risques_agent,
-    )
-
-    redacteur_agent = _make_redacteur_agent(llm)
-
-    # Build lists of agents and tasks based on configuration
     agents_list = []
     tasks_list = []
-    context_tasks = []
+    for key in used_keys:
+        agent, task = _build_agent_and_task(key, llm, common_instructions)
+        if on_task_complete is not None:
+            task.callback = functools.partial(on_task_complete, key)
+        agents_list.append(agent)
+        tasks_list.append(task)
 
-    if agent_config["participants"]:
-        agents_list.append(participants_agent)
-        tasks_list.append(task_participants)
-        context_tasks.append(task_participants)
-
-    if agent_config["objectif"]:
-        agents_list.append(objectif_agent)
-        tasks_list.append(task_objectif)
-        context_tasks.append(task_objectif)
-
-    if agent_config["points_cles"]:
-        agents_list.append(points_cles_agent)
-        tasks_list.append(task_points_cles)
-        context_tasks.append(task_points_cles)
-
-    if agent_config["decisions"]:
-        agents_list.append(decisions_agent)
-        tasks_list.append(task_decisions)
-        context_tasks.append(task_decisions)
-
-    if agent_config["actions"]:
-        agents_list.append(actions_agent)
-        tasks_list.append(task_actions)
-        context_tasks.append(task_actions)
-
-    if agent_config["risques"]:
-        agents_list.append(risques_agent)
-        tasks_list.append(task_risques)
-        context_tasks.append(task_risques)
-
-    if agent_config["redacteur"]:
-        agents_list.append(redacteur_agent)
-
+    include_redacteur = agent_config.get("redacteur", True)
+    if include_redacteur:
+        redacteur_agent = _make_redacteur_agent(llm)
         task_redaction = Task(
             description=(
                 "Voici les analyses produites par les autres agents sur le "
-                "transcript de la réunion.\n\n" + REDACTION_INSTRUCTIONS
+                "transcript de la réunion.\n\n" + build_redaction_instructions(verbosity)
             ),
             expected_output="Un unique objet JSON valide respectant le schéma donné, sans texte autour.",
             agent=redacteur_agent,
-            context=context_tasks,
+            context=tasks_list,
         )
+        if on_task_complete is not None:
+            task_redaction.callback = functools.partial(on_task_complete, "redacteur")
+        agents_list.append(redacteur_agent)
         tasks_list.append(task_redaction)
 
-    crew = Crew(
+    return Crew(
         agents=agents_list,
         tasks=tasks_list,
         process=Process.sequential,
         verbose=False,
     )
-    return crew
 
 
-# Labels affichés dans l'UI, dans le même ordre que les tasks ci-dessus
-TASK_LABELS = [
-    "👥 Participants",
-    "🎯 Objectif de la réunion",
-    "🔑 Points clés abordés",
-    "✅ Décisions prises",
-    "📋 Actions à faire",
-    "⚠️ Points de blocage",
-    "📝 Compte-rendu formaté (JSON)",
-]
+def build_revision_crew(section_name, current_text, instructions, model_name, base_url):
+    # 1. On appelle ta fonction existante pour configurer Ollama correctement
+    llm = build_llm(model_name, base_url)
+    
+    revisor_agent = Agent(
+        role="Réviseur Expert",
+        goal=f"Modifier et améliorer la section '{section_name}' d'un compte-rendu selon des consignes précises.",
+        backstory="Tu es un éditeur minutieux. Ton travail consiste à prendre un texte existant et à y appliquer strictement les modifications demandées par l'utilisateur, sans altérer le sens global sauf si demandé.",
+        verbose=False,
+        allow_delegation=False,
+        llm=llm  # <-- 2. On assigne le LLM local à l'agent ici
+    )
+
+    revision_task = Task(
+        description=(
+            f"Voici le contenu actuel de la section '{section_name}' :\n\n"
+            f"{current_text}\n\n"
+            f"Voici les instructions de modification :\n"
+            f"{instructions}\n\n"
+            "Applique ces modifications au texte. Ne renvoie QUE le texte corrigé, sans introduction ni conclusion."
+        ),
+        expected_output=f"Le texte révisé pour la section '{section_name}'.",
+        agent=revisor_agent
+    )
+
+    return Crew(
+        agents=[revisor_agent],
+        tasks=[revision_task],
+        process=Process.sequential
+    )

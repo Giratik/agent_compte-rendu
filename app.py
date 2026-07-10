@@ -1,6 +1,6 @@
 import streamlit as st
 
-from agents import build_crew, build_redaction_retry_crew, build_json_fix_crew, TASK_LABELS, DEFAULT_AGENT_CONFIG
+from agents import build_crew, build_redaction_retry_crew, build_json_fix_crew, TASK_LABELS, DEFAULT_AGENT_CONFIG, AGENT_ORDER, build_revision_crew
 from docx_export import parse_redaction_json, diagnose_json_error, build_docx
 
 st.set_page_config(page_title="Analyse de compte-rendu — CrewAI", page_icon="🧩", layout="wide")
@@ -13,11 +13,15 @@ with st.sidebar:
     st.header("⚙️ Configuration LLM (Ollama)")
     base_url = st.text_input("URL du serveur Ollama", value="http://localhost:11434")
     model_name = st.text_input("Modèle Ollama", value="gemma4:e4b", help="ex: gemma2:9b, qwen2.5:14b, llama3.1:8b...")
+
+
+    verbosity ="concis"
+
     st.markdown("---")
 
     # --- Configuration des agents ---
     st.header("🤖 Configuration des agents")
-    st.caption("Activez/désactivez les agents individuels selon vos besoins")
+    st.caption("Chaque agent ci-dessous correspond à une partie du compte-rendu qui sera rédigé. Activez/désactivez les selon vos besoins.")
 
     # Initialize agent config in session state if not present
     if "agent_config" not in st.session_state:
@@ -28,20 +32,23 @@ with st.sidebar:
 
     #col1, col2 = st.columns(2)
     #with col1:
-    agent_config["participants"] = st.checkbox("👥 Participants", value=True, help="Cet agent récupère la liste des participants dont le nom apparaît dans le transcript.")
-    agent_config["objectif"] = st.checkbox("🎯 Objectif", value=True, help="Cet agent récupère l'objectif de la réunion mentionnée dans le transcript.")
-    agent_config["points_cles"] = st.checkbox("🔑 Points clés",value=True, help="Cet agent récupère les points clés abordés dans la réunion.")
+    agent_config["participants"] = st.checkbox("👥 Participants", value=st.session_state.agent_config.get("participants", True), help="Cet agent récupère la liste des participants dont le nom apparaît dans le transcript.")
+    agent_config["objectif"] = st.checkbox("🎯 Objectif", value=st.session_state.agent_config.get("objectif", True), help="Cet agent récupère l'objectif de la réunion mentionnée dans le transcript.")
+    agent_config["points_cles"] = st.checkbox("🔑 Points clés", value=st.session_state.agent_config.get("points_cles", True), help="Cet agent récupère les points clés abordés dans la réunion.")
+    agent_config["outils_chiffres"] = st.checkbox("🛠️ Outils & chiffres", value=st.session_state.agent_config.get("outils_chiffres", True), help="Cet agent relève les outils/technologies cités et les chiffres clés mentionnés.")
     #with col2:
-    agent_config["decisions"] = st.checkbox("✅ Décisions", value=True, help="Cet agent récupère les décisions prises au terme de la réunion.")
-    agent_config["actions"] = st.checkbox("📋 Actions", value=True, help="Cet agent récupère les actions à mener décidées lors de la réunion.")
-    agent_config["risques"] = st.checkbox("⚠️ Risques", value=True, help="Cet agent récupère une liste des risques mentionnées lors de la réunion.")
+    agent_config["decisions"] = st.checkbox("✅ Décisions", value=st.session_state.agent_config.get("decisions", True), help="Cet agent récupère les décisions prises au terme de la réunion.")
+    agent_config["actions"] = st.checkbox("📋 Actions", value=st.session_state.agent_config.get("actions", True), help="Cet agent récupère les actions à mener décidées lors de la réunion.")
+    agent_config["risques"] = st.checkbox("⚠️ Risques", value=st.session_state.agent_config.get("risques", True), help="Cet agent récupère une liste des risques mentionnées lors de la réunion.")
 
     agent_config["redacteur"] = st.checkbox("📝 Rédacteur (JSON)", value=True, help="Cet agent s'occupe de la rédaction du compte-rendu final.", disabled=True)
+
+    if not any(agent_config[k] for k in AGENT_ORDER):
+        st.warning("Active au moins un agent d'analyse pour pouvoir lancer une analyse.")
 
     # Update session state if config changed
     if agent_config != st.session_state.agent_config:
         st.session_state.agent_config = agent_config
-
 
 
 # --- Entrée du transcript ---
@@ -64,10 +71,11 @@ else:
 
 st.subheader("2. Lancer l'analyse")
 
-run = st.button("🚀 Lancer les agents", type="primary", disabled=not transcript.strip())
+no_agent_active = not any(st.session_state.agent_config.get(k, True) for k in AGENT_ORDER)
+run = st.button("🚀 Lancer les agents", type="primary", disabled=not transcript.strip() or no_agent_active)
 
-# Clés internes alignées avec l'ordre des 6 premiers agents d'analyse
-ANALYSIS_KEYS = ["participants", "objectif", "points_cles", "decisions", "actions", "risques"]
+# Clés internes alignées avec l'ordre des 7 agents d'analyse
+ANALYSIS_KEYS = ["participants", "objectif", "points_cles", "outils_chiffres", "decisions", "actions", "risques"]
 
 if "results" not in st.session_state:
     st.session_state.results = None
@@ -95,108 +103,251 @@ def try_build_docx_from_raw(raw_json_text: str):
 
 
 if run:
-    with st.spinner("Les agents analysent le transcript... (peut prendre 1-2 minutes selon le modèle)"):
-        try:
-            crew = build_crew(transcript=transcript, model_name=model_name, base_url=base_url, agent_config=st.session_state.agent_config)
-            crew_output = crew.kickoff()
+    cfg = st.session_state.agent_config
+    total_steps = sum(1 for k in AGENT_ORDER if cfg[k]) + (1 if cfg["redacteur"] else 0)
+
+    # --- Suivi d'avancement agent par agent ---
+    # CrewAI appelle task.callback dès qu'une Task se termine. Comme
+    # Process.sequential exécute les tasks une par une dans le même thread,
+    # ce callback est synchrone : on peut mettre à jour l'UI Streamlit
+    # pendant crew.kickoff(), sans thread ni polling.
+    status_box = st.status("Lancement des agents...", expanded=True)
+    progress = {"count": 0}
+
+    def on_task_complete(key, output):
+        progress["count"] += 1
+        label = TASK_LABELS.get(key, key)
+        status_box.write(f"✅ {label} — terminé ({progress['count']}/{total_steps})")
+        status_box.update(label=f"Analyse en cours... ({progress['count']}/{total_steps})")
+
+    try:
+        crew = build_crew(
+            transcript=transcript,
+            model_name=model_name,
+            base_url=base_url,
+            agent_config=cfg,
+            on_task_complete=on_task_complete,
+        )
+        crew_output = crew.kickoff()
+        status_box.update(
+            label=f"Analyse terminée ({total_steps}/{total_steps}) ✅", state="complete", expanded=False
+        )
 
             # Generate dynamic task labels based on active agents
-            active_labels = []
-            if st.session_state.agent_config["participants"]:
-                active_labels.append("👥 Participants")
-            if st.session_state.agent_config["objectif"]:
-                active_labels.append("🎯 Objectif de la réunion")
-            if st.session_state.agent_config["points_cles"]:
-                active_labels.append("🔑 Points clés abordés")
-            if st.session_state.agent_config["decisions"]:
-                active_labels.append("✅ Décisions prises")
-            if st.session_state.agent_config["actions"]:
-                active_labels.append("📋 Actions à faire")
-            if st.session_state.agent_config["risques"]:
-                active_labels.append("⚠️ Points de blocage")
-            if st.session_state.agent_config["redacteur"]:
-                active_labels.append("📝 Compte-rendu formaté (JSON)")
+        active_items = []
+        if st.session_state.agent_config["participants"]: active_items.append(("participants", "👥 Participants"))
+        if st.session_state.agent_config["objectif"]: active_items.append(("objectif", "🎯 Objectif de la réunion"))
+        if st.session_state.agent_config["points_cles"]: active_items.append(("points_cles", "🔑 Points clés abordés"))
+        if st.session_state.agent_config["outils_chiffres"]: active_items.append(("outils_chiffres", "🛠️ Outils & chiffres"))
+        if st.session_state.agent_config["decisions"]: active_items.append(("decisions", "✅ Décisions prises"))
+        if st.session_state.agent_config["actions"]: active_items.append(("actions", "📋 Actions à faire"))
+        if st.session_state.agent_config["risques"]: active_items.append(("risques", "⚠️ Points de blocage"))
+        if st.session_state.agent_config["redacteur"]: active_items.append(("redacteur", "📝 Compte-rendu formaté (JSON)"))
 
-            # crew_output.tasks_output est une liste alignée avec l'ordre des tasks
-            results = []
-            for label, task_output in zip(active_labels, crew_output.tasks_output):
-                results.append((label, task_output.raw))
-            st.session_state.results = results
+        results = []
+        for (key, label), task_output in zip(active_items, crew_output.tasks_output):
+            results.append((key, label, task_output.raw))
+        st.session_state.results = results
 
-            # Build analyses dict for retry functionality (only for active analysis agents)
-            analysis_results = {}
-            analysis_keys = []
-            task_idx = 0
+        # Build analyses dict for retry functionality (only for active analysis agents)
+        analysis_results = {}
+        task_idx = 0
 
-            if st.session_state.agent_config["participants"]:
-                analysis_keys.append("participants")
-                if task_idx < len(crew_output.tasks_output):
-                    analysis_results["participants"] = crew_output.tasks_output[task_idx].raw
-                    task_idx += 1
+        if st.session_state.agent_config["participants"]:
+            if task_idx < len(crew_output.tasks_output):
+                analysis_results["participants"] = crew_output.tasks_output[task_idx].raw
+                task_idx += 1
 
-            if st.session_state.agent_config["objectif"]:
-                analysis_keys.append("objectif")
-                if task_idx < len(crew_output.tasks_output):
-                    analysis_results["objectif"] = crew_output.tasks_output[task_idx].raw
-                    task_idx += 1
+        if st.session_state.agent_config["objectif"]:
+            if task_idx < len(crew_output.tasks_output):
+                analysis_results["objectif"] = crew_output.tasks_output[task_idx].raw
+                task_idx += 1
 
-            if st.session_state.agent_config["points_cles"]:
-                analysis_keys.append("points_cles")
-                if task_idx < len(crew_output.tasks_output):
-                    analysis_results["points_cles"] = crew_output.tasks_output[task_idx].raw
-                    task_idx += 1
+        if st.session_state.agent_config["points_cles"]:
+            if task_idx < len(crew_output.tasks_output):
+                analysis_results["points_cles"] = crew_output.tasks_output[task_idx].raw
+                task_idx += 1
 
-            if st.session_state.agent_config["decisions"]:
-                analysis_keys.append("decisions")
-                if task_idx < len(crew_output.tasks_output):
-                    analysis_results["decisions"] = crew_output.tasks_output[task_idx].raw
-                    task_idx += 1
+        if st.session_state.agent_config["outils_chiffres"]:
+            if task_idx < len(crew_output.tasks_output):
+                analysis_results["outils_chiffres"] = crew_output.tasks_output[task_idx].raw
+                task_idx += 1
 
-            if st.session_state.agent_config["actions"]:
-                analysis_keys.append("actions")
-                if task_idx < len(crew_output.tasks_output):
-                    analysis_results["actions"] = crew_output.tasks_output[task_idx].raw
-                    task_idx += 1
+        if st.session_state.agent_config["decisions"]:
+            if task_idx < len(crew_output.tasks_output):
+                analysis_results["decisions"] = crew_output.tasks_output[task_idx].raw
+                task_idx += 1
 
-            if st.session_state.agent_config["risques"]:
-                analysis_keys.append("risques")
-                if task_idx < len(crew_output.tasks_output):
-                    analysis_results["risques"] = crew_output.tasks_output[task_idx].raw
-                    task_idx += 1
+        if st.session_state.agent_config["actions"]:
+            if task_idx < len(crew_output.tasks_output):
+                analysis_results["actions"] = crew_output.tasks_output[task_idx].raw
+                task_idx += 1
 
-            st.session_state.analyses = analysis_results
+        if st.session_state.agent_config["risques"]:
+            if task_idx < len(crew_output.tasks_output):
+                analysis_results["risques"] = crew_output.tasks_output[task_idx].raw
+                task_idx += 1
 
-            # Le dernier task_output est le JSON produit par l'agent rédacteur (s'il est activé)
-            redaction_raw = ""
-            if st.session_state.agent_config["redacteur"] and len(crew_output.tasks_output) > 0:
-                redaction_raw = crew_output.tasks_output[-1].raw
-            st.session_state.redaction_raw = redaction_raw
-            try_build_docx_from_raw(redaction_raw)
-        except Exception as e:
-            st.error(f"Erreur lors de l'exécution de la crew : {e}")
-            st.session_state.results = None
-            st.session_state.docx_data = None
+        st.session_state.analyses = analysis_results
+
+        # Le dernier task_output est le JSON produit par l'agent rédacteur (s'il est activé)
+        redaction_raw = ""
+        if st.session_state.agent_config["redacteur"] and len(crew_output.tasks_output) > 0:
+            redaction_raw = crew_output.tasks_output[-1].raw
+        st.session_state.redaction_raw = redaction_raw
+        docx_ok = try_build_docx_from_raw(redaction_raw)
+
+        # --- Réparation automatique si le JSON du rédacteur est invalide ---
+        if st.session_state.agent_config["redacteur"] and not docx_ok:
+            st.warning(
+                "⚠️ L'agent rédacteur a renvoyé un JSON invalide "
+                f"(détail : {st.session_state.docx_error}). Lancement de la réparation automatique..."
+            )
+
+            MAX_AUTO_FIX_ATTEMPTS = 2
+            attempt = 0
+            with st.spinner("🩹 Réparation automatique du JSON en cours..."):
+                while not docx_ok and attempt < MAX_AUTO_FIX_ATTEMPTS:
+                    attempt += 1
+                    error_report = diagnose_json_error(st.session_state.redaction_raw or "")
+                    if error_report is None:
+                        # Le JSON est en fait valide (edge case) — on retente juste le parsing
+                        docx_ok = try_build_docx_from_raw(st.session_state.redaction_raw)
+                        break
+                    try:
+                        fix_crew = build_json_fix_crew(
+                            broken_json=st.session_state.redaction_raw,
+                            error_report=error_report,
+                            model_name=model_name,
+                            base_url=base_url,
+                        )
+                        fix_output = fix_crew.kickoff()
+                        fixed_raw = fix_output.tasks_output[-1].raw
+                        st.session_state.redaction_raw = fixed_raw
+                        docx_ok = try_build_docx_from_raw(fixed_raw)
+                    except Exception as fix_err:
+                        st.session_state.docx_error = f"Échec de la réparation automatique : {fix_err}"
+                        break
+
+            if docx_ok:
+                st.success(f"✅ JSON réparé automatiquement en {attempt} tentative(s) — le .docx est prêt.")
+            else:
+                st.error(
+                    "La réparation automatique n'a pas suffi "
+                    f"(après {attempt} tentative(s)). Utilise les options ci-dessous "
+                    "pour finaliser l'export."
+                )
+    except Exception as e:
+        status_box.update(label="Erreur pendant l'analyse ❌", state="error")
+        st.error(f"Erreur lors de l'exécution de la crew : {e}")
+        st.session_state.results = None
+        st.session_state.docx_data = None
 
 st.subheader("3. Résultats par agent")
 
 if st.session_state.results:
-    tabs = st.tabs([label for label, _ in st.session_state.results])
-    for tab, (label, content) in zip(tabs, st.session_state.results):
+    # On récupère uniquement le label pour les titres des onglets
+    tabs = st.tabs([label for _, label, _ in st.session_state.results])
+    
+    # On itère avec l'index pour pouvoir mettre à jour le session_state
+    for i, (tab, (key, label, content)) in enumerate(zip(tabs, st.session_state.results)):
         with tab:
+            # Affichage du contenu généré
             st.markdown(content)
+            
+            # On ne permet pas de modifier directement la sortie JSON brute du rédacteur ici
+            if key != "redacteur":
+                st.divider()
+                #with st.expander(f"✨ Demander une modification pour : {label}"):
+                instructions = st.text_area(
+                    "Instructions de modification pour l'IA", 
+                    placeholder="Ex: Rends le texte plus formel, ajoute ce détail oublié, sois plus concis...",
+                    key=f"inst_{key}"
+                )
+                
+                if st.button(f"Appliquer la modification", key=f"btn_{key}"):
+                    if instructions.strip():
+                        try:
+                            # ÉTAPE 1 : Lancement de la micro-crew de révision pour l'onglet en cours
+                            with st.spinner(f"L'agent réviseur modifie la section '{label}'..."):
+                                revision_crew = build_revision_crew(
+                                    section_name=label,
+                                    current_text=content,
+                                    instructions=instructions,
+                                    model_name=model_name,
+                                    base_url=base_url
+                                )
+                                revision_output = revision_crew.kickoff()
+                                new_content = revision_output.tasks_output[-1].raw
+                                
+                                # Mise à jour locale de la section modifiée
+                                st.session_state.results[i] = (key, label, new_content)
+                                st.session_state.analyses[key] = new_content
 
-    with st.expander("📄 Voir tout le résultat en un seul bloc (pour copier/coller)"):
-        full_text = "\n\n".join(f"## {label}\n{content}" for label, content in st.session_state.results)
-        st.text_area("Résultat complet", value=full_text, height=400)
+                            # ÉTAPE 2 : Ré-exécution AUTOMATIQUE du rédacteur pour synchroniser le JSON
+                            if st.session_state.agent_config.get("redacteur", True):
+                                with st.spinner("🔄 Synchronisation et re-génération du compte-rendu JSON..."):
+                                    retry_crew = build_redaction_retry_crew(
+                                        analyses=st.session_state.analyses,
+                                        model_name=model_name,
+                                        base_url=base_url,
+                                        verbosity=verbosity  # Utilise la variable définie en haut de ton script
+                                    )
+                                    retry_output = retry_crew.kickoff()
+                                    new_json = retry_output.tasks_output[-1].raw
+                                    
+                                    # Mise à jour du JSON brut de session et du fichier Word (.docx)
+                                    st.session_state.redaction_raw = new_json
+                                    try_build_docx_from_raw(new_json)
+                                    
+                                    # Mise à jour dynamique du texte affiché dans l'onglet "Rédacteur (JSON)"
+                                    for idx, (r_key, r_label, _) in enumerate(st.session_state.results):
+                                        if r_key == "redacteur":
+                                            st.session_state.results[idx] = ("redacteur", r_label, new_json)
+                                            break
+                            
+                            st.success("Modification intégrée avec succès au compte-rendu global !")
+                            st.rerun()
+                            
+                        except Exception as e:
+                            st.error(f"Échec de la modification ou de la mise à jour du JSON : {e}")
+                    else:
+                        st.warning("Veuillez entrer des instructions avant de modifier.")
+
+    #with st.expander("📄 Voir tout le résultat en un seul bloc (pour copier/coller)"):
+    #    full_text = "\n\n".join(f"## {label}\n{content}" for _, label, content in st.session_state.results)
+    #    st.text_area("Résultat complet", value=full_text, height=400)
 
     st.subheader("4. Export Word")
-    if st.session_state.docx_data:
-        st.download_button(
-            "⬇️ Télécharger le compte-rendu (.docx)",
-            data=st.session_state.docx_data,
-            file_name="compte_rendu.docx",
-            mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-        )
+    if not st.session_state.agent_config.get("redacteur", True):
+        st.info("L'agent rédacteur est désactivé : l'export Word n'est pas disponible.")
+    elif st.session_state.docx_data:
+        col_dl, col_expand = st.columns([2, 1])
+        with col_dl:
+            st.download_button(
+                "⬇️ Télécharger le compte-rendu (.docx)",
+                data=st.session_state.docx_data,
+                file_name="compte_rendu.docx",
+                mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+            )
+        with col_expand:
+            st.caption("Rédaction trop synthétique ?")
+            if st.button("📝 Refaire en plus détaillé", disabled=not st.session_state.analyses):
+                with st.spinner("Nouvelle rédaction, plus étoffée..."):
+                    try:
+                        detailed_crew = build_redaction_retry_crew(
+                            analyses=st.session_state.analyses,
+                            model_name=model_name,
+                            base_url=base_url,
+                            verbosity="detaille",
+                        )
+                        detailed_output = detailed_crew.kickoff()
+                        new_raw = detailed_output.tasks_output[-1].raw
+                        st.session_state.redaction_raw = new_raw
+                        if try_build_docx_from_raw(new_raw):
+                            st.rerun()
+                    except Exception as detail_err:
+                        st.error(f"Échec de la relance détaillée : {detail_err}")
 
     if st.session_state.docx_error:
         st.warning(
@@ -214,7 +365,7 @@ if st.session_state.results:
         # --- Option A : relancer uniquement l'agent rédacteur ---
         with col_retry:
             st.markdown("**Option A — Relancer le rédacteur**")
-            st.caption("Réutilise les 5 analyses déjà produites, sans re-router tout le transcript.")
+            st.caption("Réutilise les analyses déjà produites, sans re-router tout le transcript.")
             if st.button("🔄 Relancer l'agent rédacteur"):
                 with st.spinner("Nouvelle tentative de mise en forme JSON..."):
                     try:
@@ -276,7 +427,7 @@ if st.session_state.results:
             else:
                 st.error(f"Toujours invalide : {st.session_state.docx_error}")
 
-    if not st.session_state.docx_data and not st.session_state.docx_error:
+    if not st.session_state.docx_data and not st.session_state.docx_error and st.session_state.agent_config.get("redacteur", True):
         st.caption("Tu peux copier le contenu de l'onglet 'Compte-rendu formaté' ci-dessus si besoin.")
 else:
     st.info("Collez ou uploadez un transcript, puis cliquez sur 'Lancer les agents'.")

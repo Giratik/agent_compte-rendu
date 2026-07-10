@@ -136,6 +136,31 @@ def build_docx(data: dict) -> BytesIO:
     else:
         doc.add_paragraph("Non précisé.")
 
+    # Outils & chiffres associés
+    doc.add_heading("Outils & chiffres associés", level=1)
+    outils_et_chiffres = data.get("outils_et_chiffres") or []
+    if outils_et_chiffres:
+        for item in outils_et_chiffres:
+            outil_name = str(item.get("outil", "")) if isinstance(item, dict) else str(item)
+            p = doc.add_paragraph()
+            p.add_run(outil_name).bold = True
+
+            chiffres_associes = item.get("chiffres_associes") if isinstance(item, dict) else None
+            chiffres_associes = chiffres_associes or []
+            if chiffres_associes:
+                for c in chiffres_associes:
+                    doc.add_paragraph(str(c), style="List Bullet")
+            else:
+                doc.add_paragraph("Aucun chiffre associé.", style="List Bullet")
+    else:
+        doc.add_paragraph("Aucun outil mentionné.")
+
+    autres_chiffres = data.get("autres_chiffres") or []
+    if autres_chiffres:
+        doc.add_heading("Autres chiffres clés", level=2)
+        for c in autres_chiffres:
+            doc.add_paragraph(str(c), style="List Bullet")
+
     # Décisions
     doc.add_heading("Décisions prises", level=1)
     decisions = data.get("decisions") or []
