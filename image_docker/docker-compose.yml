@@ -1,0 +1,71 @@
+
+services:
+  # ---------------------------------------------------------------------
+  # Backend FastAPI — logique CrewAI/docx
+  # ---------------------------------------------------------------------
+  backend:
+    build: ./backend
+    container_name: compte_rendu_backend
+    restart: unless-stopped
+    ports:
+      - "8003:8000"
+    networks:
+      - compte_rendu_net
+      - default
+      - chroma_net
+    environment:
+      - OLLAMA_HOST=http://10.75.12.5:11434
+      - CONTEXT_SIZE=22000
+      - TEMPERATURE=0.4
+      - DEFAULT_LLM=gemma4:e4b
+      - TRANSFORMERS_OFFLINE=1
+      - HF_DATASETS_OFFLINE=1
+      - HF_HOME=/root/.cache/huggingface
+      - EMBEDDING_MODEL=embeddinggemma:latest
+      # ← ChromaDB joignable via son nom de service sur chroma_net
+      - CHROMA_HOST=chromadb
+      - CHROMA_PORT=8000
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/health')"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+
+  # ---------------------------------------------------------------------
+  # Frontend Streamlit — pur client HTTP
+  # ---------------------------------------------------------------------
+  frontend:
+    build: ./frontend
+    container_name: compte_rendu_frontend
+    restart: unless-stopped
+    ports:
+      - "8502:8501"
+    networks:
+      - compte_rendu_net
+    environment:
+      - BACKEND_URL=http://backend:8000
+      - OLLAMA_HOST=http://10.75.12.5:11434
+      - STREAMLIT_BROWSER_SERVER_ADDRESS=10.75.12.5
+      - CONTEXT_SIZE=22000
+      - TEMPERATURE=0.4
+      - DEFAULT_LLM=gemma4:e4b
+      - DEFAULT_VLM=gemma4:e4b
+      - PAYLOAD_DEBUG=hide
+
+      - IS_DEV=no
+
+      - STREAMLIT_SERVER_MAX_UPLOAD_SIZE=5000
+      - STREAMLIT_BROWSER_SERVER_PORT=8502
+      - STREAMLIT_BROWSER_GATHER_USAGE_STATS=false
+    depends_on:
+      backend:
+        condition: service_healthy
+
+networks:
+  compte_rendu_net:
+    driver: bridge
+#        - default
+
+  chroma_net:
+    external: true

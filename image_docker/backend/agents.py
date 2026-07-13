@@ -19,8 +19,25 @@ structuré prêt pour l'export Word.
 """
 
 import functools
+import os
 
 from crewai import Agent, Task, Crew, Process, LLM
+
+# --- Garde-fou : empêcher tout appel implicite vers OpenAI ---
+# CrewAI initialise par défaut certaines fonctionnalités (mémoire, embedder,
+# tracking de coût côté litellm) qui pointent vers OpenAI, même quand on ne
+# passe QUE des LLM Ollama aux agents. En environnement sans accès internet
+# (conteneur Docker isolé), ça se traduit par l'erreur "Failed to connect to
+# OpenAI API: Connection error." dès qu'un de ces composants est sollicité.
+# On neutralise ça à deux niveaux :
+#   1. Une clé API OpenAI factice, pour satisfaire les validations qui ne
+#      vérifient que la PRÉSENCE de la variable, sans jamais réellement
+#      appeler OpenAI si tout le reste est bien configuré en local.
+#   2. memory=False explicite sur chaque Crew (voir plus bas), pour éviter
+#      que CrewAI instancie un embedder OpenAI par défaut pour la mémoire
+#      court-terme/entité.
+os.environ.setdefault("OPENAI_API_KEY", "sk-not-used-everything-is-local")
+os.environ.setdefault("CREWAI_DISABLE_TELEMETRY", "true")
 
 
 def build_llm(model_name: str, base_url: str, temperature: float = 0.1) -> LLM:
@@ -28,10 +45,15 @@ def build_llm(model_name: str, base_url: str, temperature: float = 0.1) -> LLM:
     Construit l'objet LLM CrewAI pointant vers une instance Ollama.
     model_name attendu SANS le préfixe 'ollama/' (ex: 'gemma2:9b'), il est
     ajouté automatiquement.
+
+    api_key="ollama" : valeur factice mais non vide. Ollama n'exige pas de
+    clé, mais certains chemins internes de crewai/litellm supposent la
+    présence d'une clé API et basculent sur des comportements par défaut
+    (souvent orientés OpenAI) quand elle est absente.
     """
     if not model_name.startswith("ollama/"):
         model_name = f"ollama/{model_name}"
-    return LLM(model=model_name, base_url=base_url, temperature=temperature)
+    return LLM(model=model_name, base_url=base_url, api_key="ollama", temperature=temperature)
 
 
 def _make_agent(role: str, goal: str, backstory: str, llm: LLM) -> Agent:
@@ -217,6 +239,7 @@ def build_redaction_retry_crew(
         agents=[redacteur_agent],
         tasks=[task_redaction],
         process=Process.sequential,
+        memory=False,
         verbose=False,
     )
 
@@ -264,7 +287,7 @@ def build_json_fix_crew(broken_json: str, error_report: str, model_name: str, ba
         agent=correcteur_agent,
     )
 
-    return Crew(agents=[correcteur_agent], tasks=[task], process=Process.sequential, verbose=False)
+    return Crew(agents=[correcteur_agent], tasks=[task], process=Process.sequential, memory=False, verbose=False)
 
 
 def _build_agent_and_task(key: str, llm: LLM, common_instructions: str) -> tuple[Agent, Task]:
@@ -516,7 +539,7 @@ def build_revision_crew(
         agent=agent,
     )
 
-    return Crew(agents=[agent], tasks=[task], process=Process.sequential, verbose=False)
+    return Crew(agents=[agent], tasks=[task], process=Process.sequential, memory=False, verbose=False)
 
 
 def build_crew(
@@ -590,5 +613,6 @@ def build_crew(
         agents=agents_list,
         tasks=tasks_list,
         process=Process.sequential,
+        memory=False,
         verbose=False,
     )
