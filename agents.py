@@ -52,43 +52,43 @@ AGENT_ORDER = ["participants", "objectif", "points_cles", "outils_chiffres", "de
 
 AGENT_META = {
     "participants": {
-        "label": "👥 Participants",
+        "label": "Participants",
         "name": "Participants",
         "description": "Identifie les personnes présentes (et absentes/excusées).",
     },
     "objectif": {
-        "label": "🎯 Objectif de la réunion",
+        "label": "Objectif de la réunion",
         "name": "Objectif",
         "description": "Résume en quelques phrases le but et le contexte de la réunion.",
     },
     "points_cles": {
-        "label": "🔑 Points clés abordés",
+        "label": "Points clés abordés",
         "name": "Points clés",
         "description": "Liste les principaux sujets discutés, décidés ou non.",
     },
     "outils_chiffres": {
-        "label": "🛠️ Outils & chiffres",
+        "label": "Outils & chiffres",
         "name": "Outils & chiffres",
         "description": "Relève les outils cités et relie chaque chiffre pertinent à l'outil concerné.",
     },
     "decisions": {
-        "label": "✅ Décisions prises",
+        "label": "Décisions prises",
         "name": "Décisions",
         "description": "Extrait les décisions clairement actées pendant la réunion.",
     },
     "actions": {
-        "label": "📋 Actions à faire",
+        "label": "Actions à faire",
         "name": "Actions",
         "description": "Liste les tâches à faire, avec responsable et échéance si précisés.",
     },
     "risques": {
-        "label": "⚠️ Points de blocage",
+        "label": "Points de blocage",
         "name": "Points de blocage",
         "description": "Repère désaccords non résolus, risques et questions ouvertes.",
     },
 }
 
-REDACTION_LABEL = "📝 Compte-rendu formaté (JSON)"
+REDACTION_LABEL = "Compte-rendu formaté (JSON)"
 
 # Config par défaut : tous les agents activés, y compris le rédacteur
 DEFAULT_AGENT_CONFIG = {**{k: True for k in AGENT_ORDER}, "redacteur": True}

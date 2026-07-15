@@ -49,8 +49,8 @@ services:
       - STREAMLIT_BROWSER_SERVER_ADDRESS=10.75.12.5
       - CONTEXT_SIZE=22000
       - TEMPERATURE=0.4
-      - DEFAULT_LLM=gemma4:e4b
-      - DEFAULT_VLM=gemma4:e4b
+      - OLLAMA_MODEL=gemma4:e4b
+      #- DEFAULT_VLM=gemma4:e4b
       - PAYLOAD_DEBUG=hide
 
       - IS_DEV=no
