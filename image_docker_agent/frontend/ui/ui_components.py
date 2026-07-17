@@ -16,9 +16,20 @@ def render_preview(raw_json: str):
     
     # 2. Isolement du dictionnaire principal
     start_idx = text.find('{')
-    end_idx = text.rfind('}')
-    if start_idx != -1 and end_idx != -1 and end_idx > start_idx:
-        text = text[start_idx:end_idx + 1]
+    if start_idx != -1:
+        depth = 0
+        end_idx = -1
+        for i in range(start_idx, len(text)):
+            if text[i] == "{":
+                depth += 1
+            elif text[i] == "}":
+                depth -= 1
+                if depth == 0:
+                    end_idx = i
+                    break  # On s'arrête net dès que le premier bloc est fermé
+        
+        if end_idx != -1:
+            text = text[start_idx:end_idx + 1]
         
     # 3. Correction des virgules traînantes (trailing commas) - erreur classique des LLM
     text = re.sub(r',\s*([\]}])', r'\1', text)

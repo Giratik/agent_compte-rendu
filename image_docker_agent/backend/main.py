@@ -18,9 +18,18 @@ Découpage des endpoints :
 import threading
 import functools
 from io import BytesIO
+import os
 
 from fastapi import FastAPI, HTTPException
 from fastapi.responses import StreamingResponse
+
+from transcription_tools.routers import transcription
+
+OLLAMA_URL = os.environ.get("OLLAMA_HOST", "http://localhost:11434" )
+
+app = FastAPI(title="API Transcription & Résumé")
+
+app.include_router(transcription.router)
 
 from agents import (
     AGENT_ORDER,
@@ -48,8 +57,6 @@ from schemas import (
     JsonDiagnoseResponse,
     DocxBuildRequest,
 )
-
-app = FastAPI(title="Compte-rendu multi-agents — API")
 
 
 # --------------------------------------------------------------------------

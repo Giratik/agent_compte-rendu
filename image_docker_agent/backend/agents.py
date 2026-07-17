@@ -119,40 +119,110 @@ DEFAULT_AGENT_CONFIG = {**{k: True for k in AGENT_ORDER}, "redacteur": True}
 TASK_LABELS = {**{k: v["label"] for k, v in AGENT_META.items()}, "redacteur": REDACTION_LABEL}
 
 
-REDACTION_JSON_SCHEMA = (
-    "{\n"
-    '  "titre": "titre court du compte-rendu",\n'
-    '  "date": "date de la réunion si mentionnée, sinon chaîne vide",\n'
-    '  "participants": ["Nom (fonction)", "..."],\n'
-    '  "absents": ["..."],\n'
-    '  "objectif": "paragraphe résumant le but de la réunion",\n'
-    '  "points_cles": ["point clé 1", "point clé 2"],\n'
-    '  "outils_et_chiffres": [\n'
-    '    {"outil": "nom de l\'outil/logiciel/technologie", '
-    '"chiffres_associes": ["chiffre lié à cet outil, avec son contexte", "..."]}\n'
-    "  ],\n"
-    '  "autres_chiffres": ["chiffre clé non lié à un outil précis, avec son contexte", "..."],\n'
-    '  "decisions": ["décision 1", "décision 2"],\n'
-    '  "actions": [\n'
-    '    {"action": "...", "responsable": "...", "echeance": "..."}\n'
-    "  ],\n"
-    '  "points_de_blocage": ["..."]\n'
-    "}"
-)
+#REDACTION_JSON_SCHEMA = (
+#    "{\n"
+#    '  "titre": "titre court du compte-rendu",\n'
+#    '  "date": "date de la réunion si mentionnée, sinon chaîne vide",\n'
+#    '  "participants": ["Nom (fonction)", "..."],\n'
+#    '  "absents": ["..."],\n'
+#    '  "objectif": "paragraphe résumant le but de la réunion",\n'
+#    '  "points_cles": ["point clé 1", "point clé 2"],\n'
+#    '  "outils_et_chiffres": [\n'
+#    '    {"outil": "nom de l\'outil/logiciel/technologie", '
+#    '"chiffres_associes": ["chiffre lié à cet outil, avec son contexte", "..."]}\n'
+#    "  ],\n"
+#    '  "autres_chiffres": ["chiffre clé non lié à un outil précis, avec son contexte", "..."],\n'
+#    '  "decisions": ["décision 1", "décision 2"],\n'
+#    '  "actions": [\n'
+#    '    {"action": "...", "responsable": "...", "echeance": "..."}\n'
+#    "  ],\n"
+#    '  "points_de_blocage": ["..."]\n'
+#    "}"
+#)
 
-def build_redaction_instructions(verbosity: str = "concis") -> str:
+#def build_redaction_instructions(verbosity: str = "concis") -> str:
+#    """
+#    `verbosity` : "concis" (défaut) ou "detaille". Contrôle le niveau de
+#    détail demandé au rédacteur lors de la consolidation en JSON.
+#    """
+#    base = (
+#        "Consolide ces analyses en UN SEUL objet JSON, et RIEN D'AUTRE (pas de "
+#        "texte avant/après, pas de balises markdown ```). Respecte EXACTEMENT "
+#        "ce schéma, avec des guillemets doubles et sans virgule finale superflue "
+#        "(JSON strictement valide) :\n\n"
+#        f"{REDACTION_JSON_SCHEMA}\n\n"
+#    )
+#
+#    if verbosity == "detaille":
+#        style = (
+#            "IMPORTANT — niveau de détail attendu : NE COMPRESSE PAS excessivement "
+#            "le contenu des analyses fournies. Pour chaque élément (point clé, "
+#            "décision, action, point de blocage...), reformule en 1 à 2 phrases "
+#            "complètes qui conservent le contexte et les nuances de l'analyse "
+#            "source, plutôt qu'en fragment télégraphique de quelques mots. Ne "
+#            "fusionne JAMAIS deux idées distinctes de l'analyse source en un seul "
+#            "point du JSON — un point source doit donner un point JSON, pas un "
+#            "résumé qui en absorbe plusieurs. Si une analyse source contient un "
+#            "exemple concret, un nom propre ou un chiffre, conserve-le dans le "
+#            "JSON plutôt que de le généraliser. L'objectif est de restructurer "
+#            "l'information, pas de la condenser.\n\n"
+#        )
+#    else:
+#        style = (
+#            "Niveau de détail attendu : reste synthétique — une phrase courte et "
+#            "claire par élément suffit, sans détails superflus.\n\n"
+#        )
+#
+#    tail = (
+#        "Si une information est absente ou qu'aucune analyse ne la couvre, "
+#        "utilise une chaîne vide ou une liste vide plutôt que d'inventer. "
+#        "N'écris strictement rien en dehors de ce JSON."
+#    )
+#
+#    return base + style + tail
+
+# nouvelle fct rédaction dynamique
+def build_dynamic_json_schema(active_keys: list[str]) -> str:
+    """Construit dynamiquement le schéma JSON en fonction des agents activés."""
+    schema_parts = [
+        '  "titre": "titre court du compte-rendu"',
+        '  "date": "date de la réunion si mentionnée, sinon chaîne vide"'
+    ]
+    
+    if "participants" in active_keys:
+        schema_parts.append('  "participants": ["Nom (fonction)", "..."]')
+        schema_parts.append('  "absents": ["..."]')
+    if "objectif" in active_keys:
+        schema_parts.append('  "objectif": "paragraphe résumant le but de la réunion"')
+    if "points_cles" in active_keys:
+        schema_parts.append('  "points_cles": ["point clé 1", "point clé 2"]')
+    if "outils_chiffres" in active_keys:
+        schema_parts.append('  "outils_et_chiffres": [\n    {"outil": "nom de l\'outil/logiciel/technologie", "chiffres_associes": ["chiffre lié à cet outil, avec son contexte", "..."]}\n  ]')
+        schema_parts.append('  "autres_chiffres": ["chiffre clé non lié à un outil précis, avec son contexte", "..."]')
+    if "decisions" in active_keys:
+        schema_parts.append('  "decisions": ["décision 1", "décision 2"]')
+    if "actions" in active_keys:
+        schema_parts.append('  "actions": [\n    {"action": "...", "responsable": "...", "echeance": "..."}\n  ]')
+    if "risques" in active_keys:
+        schema_parts.append('  "points_de_blocage": ["..."]')
+
+    return "{\n" + ",\n".join(schema_parts) + "\n}"
+
+
+def build_redaction_instructions(active_keys: list[str], verbosity: str = "concis") -> str:
     """
-    `verbosity` : "concis" (défaut) ou "detaille". Contrôle le niveau de
-    détail demandé au rédacteur lors de la consolidation en JSON.
+    Construit les instructions du rédacteur en lui passant uniquement
+    le schéma correspondant aux agents actifs.
     """
+    dynamic_schema = build_dynamic_json_schema(active_keys)
+    
     base = (
         "Consolide ces analyses en UN SEUL objet JSON, et RIEN D'AUTRE (pas de "
         "texte avant/après, pas de balises markdown ```). Respecte EXACTEMENT "
         "ce schéma, avec des guillemets doubles et sans virgule finale superflue "
         "(JSON strictement valide) :\n\n"
-        f"{REDACTION_JSON_SCHEMA}\n\n"
+        f"{dynamic_schema}\n\n"
     )
-
     if verbosity == "detaille":
         style = (
             "IMPORTANT — niveau de détail attendu : NE COMPRESSE PAS excessivement "
@@ -172,14 +242,13 @@ def build_redaction_instructions(verbosity: str = "concis") -> str:
             "Niveau de détail attendu : reste synthétique — une phrase courte et "
             "claire par élément suffit, sans détails superflus.\n\n"
         )
-
     tail = (
         "Si une information est absente ou qu'aucune analyse ne la couvre, "
         "utilise une chaîne vide ou une liste vide plutôt que d'inventer. "
         "N'écris strictement rien en dehors de ce JSON."
     )
-
     return base + style + tail
+
 
 
 def _make_redacteur_agent(llm: LLM) -> Agent:
@@ -221,12 +290,13 @@ def build_redaction_retry_crew(
         if key in analyses:
             sections.append(f"--- {AGENT_META[key]['name']} ---\n{analyses[key]}")
 
+    active_keys = list(analyses.keys())
     description = (
         "Voici les analyses déjà produites par d'autres agents sur le "
         "transcript d'une réunion :\n\n"
         + "\n\n".join(sections)
         + "\n\n"
-        + build_redaction_instructions(verbosity)
+        + build_redaction_instructions(active_keys, verbosity)
     )
 
     task_redaction = Task(
@@ -598,7 +668,7 @@ def build_crew(
         task_redaction = Task(
             description=(
                 "Voici les analyses produites par les autres agents sur le "
-                "transcript de la réunion.\n\n" + build_redaction_instructions(verbosity)
+                "transcript de la réunion.\n\n" + build_redaction_instructions(used_keys, verbosity)
             ),
             expected_output="Un unique objet JSON valide respectant le schéma donné, sans texte autour.",
             agent=redacteur_agent,

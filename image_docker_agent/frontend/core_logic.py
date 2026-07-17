@@ -173,7 +173,7 @@ def apply_global_modifications(backend_url, model_name, ollama_base_url, verbosi
             ]
 
         my_bar.empty()
-        st.success("Modifications globales intégrées au compte-rendu avec succès.")
+        #st.success("Modifications globales intégrées au compte-rendu avec succès.")
         return True
 
     except requests.RequestException as e:

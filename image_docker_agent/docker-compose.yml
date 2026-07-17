@@ -9,10 +9,13 @@ services:
     restart: unless-stopped
     ports:
       - "8003:8000"
+    volumes:
+      - /srv/shared_audio:/audio
     networks:
       - compte_rendu_net
       - default
       - chroma_net
+      - shared_services_net
     environment:
       - OLLAMA_HOST=http://10.75.12.5:11434
       - CONTEXT_SIZE=22000
@@ -25,12 +28,19 @@ services:
       # ← ChromaDB joignable via son nom de service sur chroma_net
       - CHROMA_HOST=chromadb
       - CHROMA_PORT=8000
+
+      - WHISPERX_SERVICE_ADDRESS=whisperx_service:50051
+      - SHARED_AUDIO_DIR=/audio
+      - COMPUTE_TYPE=float16
+
     healthcheck:
       test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/health')"]
       interval: 10s
       timeout: 5s
       retries: 5
       start_period: 10s
+
+
 
   # ---------------------------------------------------------------------
   # Frontend Streamlit — pur client HTTP
@@ -68,4 +78,6 @@ networks:
 #        - default
 
   chroma_net:
+    external: true
+  shared_services_net:
     external: true

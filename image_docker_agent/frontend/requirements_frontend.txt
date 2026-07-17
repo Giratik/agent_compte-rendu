@@ -1,2 +1,7 @@
 streamlit>=1.38.0
 requests>=2.32.0
+PyPDF2
+python-docx
+
+PyMuPDF
+Pillow

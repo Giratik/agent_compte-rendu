@@ -29,7 +29,8 @@ def set_variables():
             agent_order = st.session_state.agents_meta["agent_order"]
             agent_meta = st.session_state.agents_meta["agent_meta"]
 
-            if "agent_config" not in st.session_state:
+            # CORRECTION ICI : On vérifie si c'est None
+            if st.session_state.get("agent_config") is None:
                 st.session_state.agent_config = st.session_state.agents_meta["default_agent_config"].copy()
 
             agent_config = st.session_state.agent_config.copy()
@@ -88,7 +89,8 @@ def render_sidebar():
             agent_order = st.session_state.agents_meta["agent_order"]
             agent_meta = st.session_state.agents_meta["agent_meta"]
 
-            if "agent_config" not in st.session_state:
+            # CORRECTION ICI AUSSI : On vérifie si c'est None
+            if st.session_state.get("agent_config") is None:
                 st.session_state.agent_config = st.session_state.agents_meta["default_agent_config"].copy()
 
             agent_config = st.session_state.agent_config.copy()
