@@ -2,6 +2,7 @@ import time
 import streamlit as st
 import requests
 import api_client as api
+from utility.session_state_central_cr import SK, get, set as ss_set
 
 def execute_analysis(backend_url, transcript, agent_config, model_name, ollama_base_url, verbosity):
     """Lance l'analyse initiale et gère la boucle de vérification des statuts."""
@@ -61,16 +62,16 @@ def execute_analysis(backend_url, transcript, agent_config, model_name, ollama_b
                     pass # On conserve l'erreur originale si la correction échoue
 
             # Mise à jour des états avec la version (potentiellement) corrigée
-            st.session_state.analyses = job["analyses"]
-            st.session_state.redaction_raw = current_raw
-            st.session_state.docx_ok = current_ok
-            st.session_state.docx_error = current_error
-            
+            ss_set(SK.ANALYSE, job["analyses"])
+            ss_set(SK.REDACTION_RAW, current_raw)
+            ss_set(SK.DOCX_OK, current_ok)
+            ss_set(SK.DOCX_ERROR, current_error)
+
             # Mise à jour des résultats avec le JSON final
-            st.session_state.results = [
+            ss_set(SK.RESULTS, [
                 {**rr, "content": current_raw} if rr["key"] == "redacteur" else rr
                 for rr in job["results"]
-            ]
+            ])
 
             if current_raw and current_ok:
                 status_box.update(
@@ -94,7 +95,7 @@ def execute_analysis(backend_url, transcript, agent_config, model_name, ollama_b
         if job["status"] == "error":
             status_box.update(label="Erreur pendant l'analyse ❌", state="error")
             st.error(f"Erreur lors de l'exécution de la crew : {job['error']}")
-            st.session_state.results = None
+            ss_set(SK.RESULTS, None)
             return False
 
         time.sleep(1.2)
@@ -103,18 +104,18 @@ def execute_analysis(backend_url, transcript, agent_config, model_name, ollama_b
 def apply_global_modifications(backend_url, model_name, ollama_base_url, verbosity, global_instructions):
     """Applique les modifications globales à l'ensemble des sections."""
     try:
-        editable_results = [r for r in st.session_state.results if r["key"] != "redacteur"]
-        
+        editable_results = [r for r in get(SK.RESULTS) if r["key"] != "redacteur"]
+
         progress_text = "Transmission de vos instructions aux agents..."
         my_bar = st.progress(0, text=progress_text)
 
         new_results_dict = {}
-        
+
         # On itère sur chaque section pour lui appliquer la même instruction globale
         for i, r in enumerate(editable_results):
             key, label, content = r["key"], r["label"], r["content"]
             my_bar.progress((i) / len(editable_results), text=f"L'agent révise la section '{label}'...")
-            
+
             new_content = api.revise_section(
                 backend_url=backend_url,
                 section_name=label,
@@ -126,25 +127,25 @@ def apply_global_modifications(backend_url, model_name, ollama_base_url, verbosi
             new_results_dict[key] = new_content
 
         # Mise à jour de l'état de la session
-        st.session_state.results = [
+        ss_set(SK.RESULTS, [
             {**rr, "content": new_results_dict.get(rr["key"], rr["content"])}
-            for rr in st.session_state.results
-        ]
+            for rr in get(SK.RESULTS)
+        ])
         for k, v in new_results_dict.items():
-            if st.session_state.analyses and k in st.session_state.analyses:
-                st.session_state.analyses[k] = v
+            if get(SK.ANALYSE) and k in get(SK.ANALYSE):
+                ss_set(SK.ANALYSE, {**get(SK.ANALYSE), k: v})
 
         # Resynchronise automatiquement le rédacteur final avec l'ensemble des analyses corrigées
-        if st.session_state.agent_config.get("redacteur", True) and st.session_state.analyses:
+        if get(SK.AGENT_CONFIG).get("redacteur", True) and get(SK.ANALYSE):
             my_bar.progress(0.85, text="🔄 Consolidation du compte-rendu final en cours...")
             redaction = api.redaction_retry(
                 backend_url=backend_url,
-                analyses=st.session_state.analyses,
+                analyses=get(SK.ANALYSE),
                 model_name=model_name,
                 ollama_base_url=ollama_base_url,
                 verbosity=verbosity,
             )
-            
+
             # Tentative d'auto-correction silencieuse
             if not redaction["docx_ok"]:
                 my_bar.progress(0.95, text="🛠️ Format JSON invalide, l'agent correcteur répare le document...")
@@ -155,22 +156,22 @@ def apply_global_modifications(backend_url, model_name, ollama_base_url, verbosi
                         model_name,
                         ollama_base_url
                     )
-                    st.session_state.redaction_raw = fixed["raw_json"]
-                    st.session_state.docx_ok = fixed["docx_ok"]
-                    st.session_state.docx_error = fixed["docx_error"]
+                    ss_set(SK.REDACTION_RAW, fixed["raw_json"])
+                    ss_set(SK.DOCX_OK, fixed["docx_ok"])
+                    ss_set(SK.DOCX_ERROR, fixed["docx_error"])
                 except requests.RequestException:
-                    st.session_state.redaction_raw = redaction["raw_json"]
-                    st.session_state.docx_ok = redaction["docx_ok"]
-                    st.session_state.docx_error = redaction["docx_error"]
+                    ss_set(SK.REDACTION_RAW, redaction["raw_json"])
+                    ss_set(SK.DOCX_OK, redaction["docx_ok"])
+                    ss_set(SK.DOCX_ERROR, redaction["docx_error"])
             else:
-                st.session_state.redaction_raw = redaction["raw_json"]
-                st.session_state.docx_ok = redaction["docx_ok"]
-                st.session_state.docx_error = redaction["docx_error"]
+                ss_set(SK.REDACTION_RAW, redaction["raw_json"])
+                ss_set(SK.DOCX_OK, redaction["docx_ok"])
+                ss_set(SK.DOCX_ERROR, redaction["docx_error"])
 
-            st.session_state.results = [
-                {**rr, "content": st.session_state.redaction_raw} if rr["key"] == "redacteur" else rr
-                for rr in st.session_state.results
-            ]
+            ss_set(SK.RESULTS, [
+                {**rr, "content": get(SK.REDACTION_RAW)} if rr["key"] == "redacteur" else rr
+                for rr in get(SK.RESULTS)
+            ])
 
         my_bar.empty()
         #st.success("Modifications globales intégrées au compte-rendu avec succès.")

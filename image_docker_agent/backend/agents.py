@@ -1,3 +1,5 @@
+# backend/agents.py
+
 """
 Définition de la "crew" d'agents chargés d'analyser un transcript de réunion.
 

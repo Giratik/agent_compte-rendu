@@ -6,8 +6,8 @@ import tempfile
 import traceback
 import asyncio
 from fastapi import APIRouter, UploadFile, File, Form, HTTPException
-from transcription_tools.utility_functions.whisperx_transcriber import transcribe_audio_with_whisperx, convert_audio_to_wav_async
-from transcription_tools.utility_functions.transcription_queue import transcription_queue
+from transcription_tools.whisperx_transcriber import transcribe_audio_with_whisperx, convert_audio_to_wav_async
+from transcription_tools.transcription_queue import transcription_queue
 
 COMPUTE_TYPE = os.environ.get("COMPUTE_TYPE", "float16")
 
@@ -29,7 +29,7 @@ async def get_queue_position(queue_token: str):
         "message": f"Vous êtes en position {position} dans la file d'attente"
     }
 
-@router.post("/")
+@router.post("/processing_audio")
 async def transcribe_audio(
     file: UploadFile = File(...),
     model_choice: str = Form("large-v3"),
@@ -97,13 +97,13 @@ async def transcribe_audio(
             os.remove(audio_path_to_process)
 
 
-@router.get("/queue-position")
-async def get_queue_position(queue_token: str):
-    position = await transcription_queue.get_queue_position(queue_token)
-    if position is None:
-        # Le token n'est plus dans la queue : soit il est en cours de traitement, soit invalide
-        is_current = await transcription_queue.is_current_token(queue_token)
-        if is_current:
-            return {"status": "processing"}
-        return {"status": "error", "message": "Token de file d'attente invalide ou expiré"}
-    return {"status": "waiting", "position": position}
+#@router.get("/queue-position")
+#async def get_queue_position(queue_token: str):
+#    position = await transcription_queue.get_queue_position(queue_token)
+#    if position is None:
+#        # Le token n'est plus dans la queue : soit il est en cours de traitement, soit invalide
+#        is_current = await transcription_queue.is_current_token(queue_token)
+#        if is_current:
+#            return {"status": "processing"}
+#        return {"status": "error", "message": "Token de file d'attente invalide ou expiré"}
+#    return {"status": "waiting", "position": position}

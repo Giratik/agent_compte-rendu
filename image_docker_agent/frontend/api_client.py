@@ -11,7 +11,7 @@ DEFAULT_TIMEOUT = 600
 
 
 def get_agents_config(backend_url: str) -> dict:
-    r = requests.get(f"{backend_url}/agents/config", timeout=30)
+    r = requests.get(f"{backend_url}/agent/config", timeout=30)
     r.raise_for_status()
     return r.json()
 
@@ -30,13 +30,13 @@ def start_analysis(
         "llm": {"model_name": model_name, "base_url": ollama_base_url},
         "verbosity": verbosity,
     }
-    r = requests.post(f"{backend_url}/analyze", json=payload, timeout=30)
+    r = requests.post(f"{backend_url}/agent/analyze", json=payload, timeout=30)
     r.raise_for_status()
     return r.json()
 
 
 def poll_job(backend_url: str, job_id: str) -> dict:
-    r = requests.get(f"{backend_url}/jobs/{job_id}", timeout=30)
+    r = requests.get(f"{backend_url}/agent/jobs/{job_id}", timeout=30)
     r.raise_for_status()
     return r.json()
 
@@ -55,7 +55,7 @@ def revise_section(
         "instructions": instructions,
         "llm": {"model_name": model_name, "base_url": ollama_base_url},
     }
-    r = requests.post(f"{backend_url}/revise", json=payload, timeout=DEFAULT_TIMEOUT)
+    r = requests.post(f"{backend_url}/agent/revise", json=payload, timeout=DEFAULT_TIMEOUT)
     r.raise_for_status()
     return r.json()["new_text"]
 
@@ -72,7 +72,7 @@ def redaction_retry(
         "llm": {"model_name": model_name, "base_url": ollama_base_url},
         "verbosity": verbosity,
     }
-    r = requests.post(f"{backend_url}/redaction/retry", json=payload, timeout=DEFAULT_TIMEOUT)
+    r = requests.post(f"{backend_url}/agent/redaction/retry", json=payload, timeout=DEFAULT_TIMEOUT)
     r.raise_for_status()
     return r.json()
 
@@ -82,19 +82,19 @@ def redaction_fix(backend_url: str, broken_json: str, model_name: str, ollama_ba
         "broken_json": broken_json,
         "llm": {"model_name": model_name, "base_url": ollama_base_url},
     }
-    r = requests.post(f"{backend_url}/redaction/fix", json=payload, timeout=DEFAULT_TIMEOUT)
+    r = requests.post(f"{backend_url}/agent/redaction/fix", json=payload, timeout=DEFAULT_TIMEOUT)
     r.raise_for_status()
     return r.json()
 
 
 def docx_diagnose(backend_url: str, raw_json: str) -> dict:
-    r = requests.post(f"{backend_url}/docx/diagnose", json={"raw_json": raw_json}, timeout=30)
+    r = requests.post(f"{backend_url}/agent/docx/diagnose", json={"raw_json": raw_json}, timeout=30)
     r.raise_for_status()
     return r.json()
 
 
 def docx_build(backend_url: str, raw_json: str) -> bytes:
     """Renvoie les octets du .docx, ou lève requests.HTTPError (422 si JSON invalide)."""
-    r = requests.post(f"{backend_url}/docx/build", json={"raw_json": raw_json}, timeout=60)
+    r = requests.post(f"{backend_url}/agent/docx/build", json={"raw_json": raw_json}, timeout=60)
     r.raise_for_status()
     return r.content
