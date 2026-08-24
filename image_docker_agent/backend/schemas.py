@@ -32,6 +32,7 @@ class AnalyzeRequest(BaseModel):
     agent_config: AgentConfig = Field(default_factory=AgentConfig)
     llm: LLMConfig = Field(default_factory=LLMConfig)
     verbosity: str = "concis"  # "concis" | "detaille"
+    user_input: str = ""
 
 
 class JobStepStatus(BaseModel):
@@ -75,6 +76,7 @@ class RedactionRetryRequest(BaseModel):
     analyses: dict[str, str]
     llm: LLMConfig = Field(default_factory=LLMConfig)
     verbosity: str = "concis"
+    user_input: str = ""
 
 
 class RedactionResultResponse(BaseModel):
@@ -99,3 +101,10 @@ class JsonDiagnoseResponse(BaseModel):
 
 class DocxBuildRequest(BaseModel):
     raw_json: str
+
+
+# Pydantic model
+class RedactionReviseRequest(BaseModel):
+    current_raw_json: str
+    instructions: str
+    llm: LLMConfig

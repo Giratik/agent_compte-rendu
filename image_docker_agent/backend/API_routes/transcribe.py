@@ -16,7 +16,6 @@ router = APIRouter(prefix="/transcribe", tags=["Transcription"])
 
 @router.get("/queue-position/")
 async def get_queue_position(queue_token: str):
-    """Endpoint to check current queue position without uploading file"""
     if not queue_token:
         raise HTTPException(status_code=400, detail="queue_token is required")
 
@@ -24,7 +23,9 @@ async def get_queue_position(queue_token: str):
     if position is None:
         raise HTTPException(status_code=404, detail="Queue token not found")
 
+    status = "processing" if position == 1 else "waiting"
     return {
+        "status": status,
         "position": position,
         "message": f"Vous êtes en position {position} dans la file d'attente"
     }

@@ -39,6 +39,8 @@ class SK:
     RAG_CONFIG                   = "rag_config"
     AUTO_RUN                     = "auto_run_agents"
 
+    USER_INPUT                   = "user_input"
+
 
 _DEFAULTS: dict[str, Any] = {
     SK.VERBOSITY:                    None,
@@ -63,13 +65,14 @@ _DEFAULTS: dict[str, Any] = {
     SK.SUCCESS_MSG:                  None,
 
     SK.RAG_CONFIG: lambda: {
-        "collection": "aucune_collection",
+        "collection": [],
         "model":      DEFAULT_LLM,
         "n_results":  250,
         "seuil":      0.6,
         "alpha":      0.5,
     },
     SK.AUTO_RUN:                     True,
+    SK.USER_INPUT:                   None,
 }
 
 # ─── Initialisation ───────────────────────────────────────────────────────────
@@ -83,6 +86,17 @@ def init_session_state() -> None:
     if st.session_state[SK.SESSION_ID] is None:
         st.session_state[SK.SESSION_ID] = str(uuid.uuid4())
 
+def set_rag_config(**kwargs) -> None:
+    """Met à jour une ou plusieurs clés de RAG_CONFIG."""
+    config = get(SK.RAG_CONFIG) or {}
+    config.update(kwargs)
+    set(SK.RAG_CONFIG, config)
+
+def get_rag_collections() -> list[str]:
+    return get(SK.RAG_CONFIG).get("collection", [])
+
+def set_rag_collections(collections: list[str]) -> None:
+    set_rag_config(collection=collections)
 
 # ─── Accesseurs bas niveau ────────────────────────────────────────────────────
 

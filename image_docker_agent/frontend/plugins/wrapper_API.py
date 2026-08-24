@@ -52,11 +52,11 @@ def list_generative_models() -> List[str]:
     return _get("/rag/models")["models"]
  
  
-def list_doc_dates(collection_name: str) -> List[str]:
-    try:
-        return _get(f"/rag/collections/{collection_name}/dates")
-    except Exception:
-        return []
+#def list_doc_dates(collection_name: str) -> List[str]:
+#    try:
+#        return _get(f"/rag/collections/{collection_name}/dates")
+#    except Exception:
+#        return []
  
  
 # ─── Réécriture de requête ────────────────────────────────────────────────────
@@ -196,3 +196,38 @@ def extract_citations(response: str) -> tuple[str, List[str]]:
 def get_available_collection_names() -> list[str]:
     response = get_registry_collection()  # appel HTTP existant vers /rag/registry_get
     return [entry["nom"] for entry in response.get("registry", [])]
+
+
+
+def fetch_full_lexicon(collection_name):
+    # Remplacez par l'URL de votre API
+    url = f"{BASE_URL}/rag/lexique/{collection_name}" 
+
+    response = requests.get(url)
+    if response.status_code == 200:
+        data = response.json()
+        return data.get("lexique", [])
+    else:
+        return []
+
+
+def filter_relevant_definitions(lexique_complet, texte_source):
+    """Filtre de manière stricte (sensible à la casse) pour éviter les faux positifs comme 'va'."""
+    lexique_utile = []
+    
+    for definition in lexique_complet:
+        if ":" in definition:
+            termes_cles_bruts = definition.split(":")[0].strip()
+            
+            # On ne prend QUE le premier terme (l'acronyme officiel en majuscules, ex: "VA")
+            # Cela évite d'utiliser la variante minuscule "va" si elle est présente dans le dico
+            termes = termes_cles_bruts.split()
+            if not termes:
+                continue
+            terme_principal = termes[0] 
+            
+            # Recherche SENSIBLE à la casse (pas de re.IGNORECASE)
+            if re.search(rf'\b{re.escape(terme_principal)}\b', texte_source):
+                lexique_utile.append(definition)
+                
+    return lexique_utile

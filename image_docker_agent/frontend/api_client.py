@@ -23,12 +23,14 @@ def start_analysis(
     model_name: str,
     ollama_base_url: str,
     verbosity: str = "concis",
+    user_input: str = "",
 ) -> dict:
     payload = {
         "transcript": transcript,
         "agent_config": agent_config,
         "llm": {"model_name": model_name, "base_url": ollama_base_url},
         "verbosity": verbosity,
+        "user_input": user_input,
     }
     r = requests.post(f"{backend_url}/agent/analyze", json=payload, timeout=30)
     r.raise_for_status()
@@ -66,11 +68,13 @@ def redaction_retry(
     model_name: str,
     ollama_base_url: str,
     verbosity: str = "concis",
+    #user_input: str = "",
 ) -> dict:
     payload = {
         "analyses": analyses,
         "llm": {"model_name": model_name, "base_url": ollama_base_url},
         "verbosity": verbosity,
+        #"user_input": user_input,
     }
     r = requests.post(f"{backend_url}/agent/redaction/retry", json=payload, timeout=DEFAULT_TIMEOUT)
     r.raise_for_status()

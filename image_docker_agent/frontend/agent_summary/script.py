@@ -6,7 +6,11 @@ import api_client as api
 from ui.ui_components import render_preview
 from ui.ui_sidebar import render_sidebar
 import core_logic as core
-from utility.session_state_central_cr import SK, get, set as ss_set
+from utility.session_state_central_cr import SK, get, set as ss_set,set_rag_collections, get_rag_collections
+
+from plugins.wrapper_API import get_available_collection_names, fetch_full_lexicon, filter_relevant_definitions
+
+from agent_summary.helper_lexique import enrich_transcript_with_acronyms
 
 import os
 
@@ -21,11 +25,26 @@ def render_agent_summary():
     model_name = OLLAMA_MODEL
     verbosity = get(SK.VERBOSITY)
     agent_order = get(SK.AGENT_ORDER)
+    user_input = get(SK.USER_INPUT)
 
     transcript = get(SK.TRANSCRIPT_TEXT)
+    set_rag_collections(get_available_collection_names())
+    collection_list = get_rag_collections()
+    lexique_utile = None
+    for element in collection_list:
+            if element == "lexique":
+                # 1. On récupère et filtre le lexique pertinent pour ce transcript
+                lexique_complet = fetch_full_lexicon(element)
+                lexique_utile = filter_relevant_definitions(lexique_complet, transcript)
+                #st.write(lexique_utile)
 
     # --- Lancement de l'analyse ---
     st.subheader("Lancer l'analyse")
+    if lexique_utile:
+            transcript = enrich_transcript_with_acronyms(transcript, lexique_utile)
+            #with st.expander("Voir le transcript enrichi"):
+                #st.write(transcript)
+        
     no_agent_active = not any(get(SK.AGENT_CONFIG).get(k, True) for k in agent_order)
 
     is_transcript_ready = bool(transcript.strip())
@@ -40,7 +59,7 @@ def render_agent_summary():
     # 3. Exécution si clic manuel OU condition automatique remplie
     if run or auto_run:
         # L'appel à la fonction gère la requête, le polling, et les mises à jour UI/session_state
-        core.execute_analysis(backend_url, transcript, get(SK.AGENT_CONFIG), model_name, ollama_base_url, verbosity)
+        core.execute_analysis(backend_url, transcript, get(SK.AGENT_CONFIG), model_name, ollama_base_url, verbosity, user_input)
 
         # Force le rafraîchissement de la page pour afficher directement la section 3 après le traitement automatique
         if auto_run:
@@ -87,6 +106,7 @@ def render_agent_summary():
                         model_name=model_name,
                         ollama_base_url=ollama_base_url,
                         verbosity="detaille",
+                        #user_input=user_input,
                     )
 
                     # Auto-correction silencieuse

@@ -55,6 +55,7 @@ def _run_analysis_job(job_id: str, req: AnalyzeRequest):
             agent_config=cfg,
             on_task_complete=on_task_complete,
             verbosity=req.verbosity,
+            user_input=req.user_input,
         )
         crew_output = crew.kickoff()
 

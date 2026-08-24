@@ -2,7 +2,7 @@ import os
 import streamlit as st
 import requests
 import api_client as api
-from utility.session_state_central_cr import SK, get, set
+from utility.session_state_central_cr import SK, get, set as ss_set
 
 BACKEND_URL_DEFAULT = os.environ.get("BACKEND_URL", "http://backend:8000")
 OLLAMA_URL = os.environ.get("OLLAMA_HOST", "http://10.75.12.5:11434")
@@ -38,9 +38,9 @@ def render_sidebar():
         st.header("🤖 Configuration des agents")
         if get(SK.AGENTS_META) is None:
             try:
-                set(SK.AGENTS_META, api.get_agents_config(backend_url))
+                ss_set(SK.AGENTS_META, api.get_agents_config(backend_url))
             except requests.RequestException as e:
-                set(SK.AGENTS_META, None)
+                ss_set(SK.AGENTS_META, None)
                 st.error(f"Impossible de joindre le backend ({backend_url}) : {e}")
 
         agent_order = []
@@ -50,7 +50,7 @@ def render_sidebar():
 
             # dict vide = pas encore initialisé (DEFAULTS = {})
             if not get(SK.AGENT_CONFIG):
-                set(SK.AGENT_CONFIG, get(SK.AGENTS_META)["default_agent_config"].copy())
+                ss_set(SK.AGENT_CONFIG, get(SK.AGENTS_META)["default_agent_config"].copy())
 
             agent_config = get(SK.AGENT_CONFIG).copy()
             for key in agent_order:
@@ -72,7 +72,7 @@ def render_sidebar():
                 st.warning("Active au moins un agent d'analyse pour pouvoir lancer une analyse.")
 
             if agent_config != get(SK.AGENT_CONFIG):
-                set(SK.AGENT_CONFIG, agent_config)
+                ss_set(SK.AGENT_CONFIG, agent_config)
         else:
             st.stop()
 

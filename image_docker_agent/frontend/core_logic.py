@@ -4,7 +4,7 @@ import requests
 import api_client as api
 from utility.session_state_central_cr import SK, get, set as ss_set
 
-def execute_analysis(backend_url, transcript, agent_config, model_name, ollama_base_url, verbosity):
+def execute_analysis(backend_url, transcript, agent_config, model_name, ollama_base_url, verbosity, user_input,):
     """Lance l'analyse initiale et gère la boucle de vérification des statuts."""
     try:
         job = api.start_analysis(
@@ -14,6 +14,7 @@ def execute_analysis(backend_url, transcript, agent_config, model_name, ollama_b
             model_name=model_name,
             ollama_base_url=ollama_base_url,
             verbosity=verbosity,
+            user_input=user_input,
         )
     except requests.RequestException as e:
         st.error(f"Impossible de démarrer l'analyse : {e}")

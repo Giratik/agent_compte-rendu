@@ -115,6 +115,8 @@ def revise(req: ReviseRequest):
 # --------------------------------------------------------------------------
 
 
+import traceback
+
 @router.post("/redaction/retry", response_model=RedactionResultResponse)
 def redaction_retry(req: RedactionRetryRequest):
     try:
@@ -123,13 +125,16 @@ def redaction_retry(req: RedactionRetryRequest):
             model_name=req.llm.model_name,
             base_url=req.llm.base_url,
             verbosity=req.verbosity,
+            #user_input=req.user_input,
         )
         output = crew.kickoff()
         raw_json = output.tasks_output[-1].raw
         docx_ok, docx_error = _try_build_docx(raw_json)
         return RedactionResultResponse(raw_json=raw_json, docx_ok=docx_ok, docx_error=docx_error)
     except Exception as e:
-        raise HTTPException(500, f"Échec de la relance du rédacteur : {e}")
+        tb = traceback.format_exc()
+        print(tb, flush=True)  # apparaît dans docker logs
+        raise HTTPException(500, f"Échec de la relance du rédacteur : {tb}")
 
 
 @router.post("/redaction/fix", response_model=RedactionResultResponse)
