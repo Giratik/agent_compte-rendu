@@ -68,7 +68,7 @@ def redaction_retry(
     model_name: str,
     ollama_base_url: str,
     verbosity: str = "concis",
-    #user_input: str = "",
+    user_input: str = "",
 ) -> dict:
     payload = {
         "analyses": analyses,

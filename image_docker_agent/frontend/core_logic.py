@@ -102,7 +102,7 @@ def execute_analysis(backend_url, transcript, agent_config, model_name, ollama_b
         time.sleep(1.2)
 
 
-def apply_global_modifications(backend_url, model_name, ollama_base_url, verbosity, global_instructions):
+def apply_global_modifications(backend_url, model_name, ollama_base_url, verbosity, global_instructions, user_input):
     """Applique les modifications globales à l'ensemble des sections."""
     try:
         editable_results = [r for r in get(SK.RESULTS) if r["key"] != "redacteur"]
@@ -136,6 +136,7 @@ def apply_global_modifications(backend_url, model_name, ollama_base_url, verbosi
             if get(SK.ANALYSE) and k in get(SK.ANALYSE):
                 ss_set(SK.ANALYSE, {**get(SK.ANALYSE), k: v})
 
+        ss_set(SK.USER_INPUT, global_instructions)
         # Resynchronise automatiquement le rédacteur final avec l'ensemble des analyses corrigées
         if get(SK.AGENT_CONFIG).get("redacteur", True) and get(SK.ANALYSE):
             my_bar.progress(0.85, text="🔄 Consolidation du compte-rendu final en cours...")
@@ -145,6 +146,7 @@ def apply_global_modifications(backend_url, model_name, ollama_base_url, verbosi
                 model_name=model_name,
                 ollama_base_url=ollama_base_url,
                 verbosity=verbosity,
+                user_input=SK.USER_INPUT, ### ???
             )
 
             # Tentative d'auto-correction silencieuse

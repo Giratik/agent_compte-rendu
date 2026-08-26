@@ -163,7 +163,7 @@ def build_revision_crew(
 
 
 def build_redaction_retry_crew(
-    analyses: dict, model_name: str, base_url: str, verbosity: str = "concis"
+    analyses: dict, model_name: str, base_url: str, verbosity: str = "concis", user_input: str = ""
 ) -> Crew:
     """
     Relance UNIQUEMENT l'agent rédacteur, à partir des analyses déjà
@@ -175,7 +175,7 @@ def build_redaction_retry_crew(
     (seuls les agents activés lors du run initial y figurent).
     """
     llm = build_llm(model_name, base_url)
-    redacteur_agent = build_redacteur_agent(llm)
+    redacteur_agent = build_redacteur_agent(llm, user_input)
 
     sections = []
     for key in AGENT_ORDER:

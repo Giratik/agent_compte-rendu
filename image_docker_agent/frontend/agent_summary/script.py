@@ -18,6 +18,13 @@ OLLAMA_HOST = os.environ.get("OLLAMA_HOST", "http://10.75.12.5:11434")
 BACKEND_URL = os.environ.get("BACKEND_URL", "http://backend:8000")
 OLLAMA_MODEL = os.environ.get("OLLAMA_MODEL", "gemma4:e4b")
 
+def _sync_redaction(raw_json):
+    ss_set(SK.RESULTS, [
+        {**rr, "content": raw_json} if rr["key"] == "redacteur" else rr
+        for rr in get(SK.RESULTS)
+    ])
+
+
 def render_agent_summary():
     # --- Sidebar : Configuration et sélection des agents ---
     backend_url = BACKEND_URL
@@ -92,7 +99,7 @@ def render_agent_summary():
                 st.warning("Décris la modification souhaitée avant de valider.")
             else:
                 # L'appel à la logique métier applique les modifications et met à jour st.session_state
-                if core.apply_global_modifications(backend_url, model_name, ollama_base_url, verbosity, global_instructions):
+                if core.apply_global_modifications(backend_url, model_name, ollama_base_url, verbosity, global_instructions, user_input):
                     ss_set(SK.SUCCESS_MSG, "Vos modifications ont été appliquées ! Le nouvel aperçu est affiché juste au-dessus ([ici](#section-3)), et le fichier Word a été mis à jour.")
                     st.rerun()
 
@@ -106,25 +113,30 @@ def render_agent_summary():
                         model_name=model_name,
                         ollama_base_url=ollama_base_url,
                         verbosity="detaille",
-                        #user_input=user_input,
+                        user_input=SK.USER_INPUT,
                     )
 
                     # Auto-correction silencieuse
                     if not redaction["docx_ok"]:
-                        st.toast("🛠️ Format JSON invalide, l'agent correcteur tente de réparer...")
                         try:
                             fixed = api.redaction_fix(backend_url, redaction["raw_json"], model_name, ollama_base_url)
                             ss_set(SK.REDACTION_RAW, fixed["raw_json"])
                             ss_set(SK.DOCX_OK, fixed["docx_ok"])
                             ss_set(SK.DOCX_ERROR, fixed["docx_error"])
+                            # ← ici
+                            _sync_redaction(fixed["raw_json"])
                         except requests.RequestException:
                             ss_set(SK.REDACTION_RAW, redaction["raw_json"])
                             ss_set(SK.DOCX_OK, redaction["docx_ok"])
                             ss_set(SK.DOCX_ERROR, redaction["docx_error"])
+                            # ← et ici
+                            _sync_redaction(redaction["raw_json"])
                     else:
                         ss_set(SK.REDACTION_RAW, redaction["raw_json"])
                         ss_set(SK.DOCX_OK, redaction["docx_ok"])
                         ss_set(SK.DOCX_ERROR, redaction["docx_error"])
+                        # ← et ici
+                        _sync_redaction(redaction["raw_json"])
 
                     ss_set(SK.SUCCESS_MSG, "Nouvelle rédaction terminée ! Le nouvel aperçu est affiché juste au-dessus ([ici](#section-3)), et le fichier Word a été mis à jour.")
                     st.rerun()

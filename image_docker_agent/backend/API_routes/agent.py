@@ -125,7 +125,7 @@ def redaction_retry(req: RedactionRetryRequest):
             model_name=req.llm.model_name,
             base_url=req.llm.base_url,
             verbosity=req.verbosity,
-            #user_input=req.user_input,
+            user_input=req.user_input,
         )
         output = crew.kickoff()
         raw_json = output.tasks_output[-1].raw
