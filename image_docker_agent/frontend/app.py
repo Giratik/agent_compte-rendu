@@ -12,7 +12,7 @@ from ui.ui_sidebar import render_sidebar
 LOGO_PATH = "ressources/logo_EDP/Eau_de_Paris_bleu.svg.png"
 IS_DEV = os.environ.get("IS_DEV", "no")
 
-st.set_page_config(page_title="Analyse de compte-rendu CrewAI", page_icon=":material/robot_2:", layout="wide")
+st.set_page_config(page_title="Transcription et Compte-Rendu", page_icon=":material/robot_2:", layout="wide")
 if os.path.exists(LOGO_PATH):
     st.logo(LOGO_PATH)
 
