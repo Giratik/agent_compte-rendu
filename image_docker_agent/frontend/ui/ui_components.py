@@ -1,3 +1,5 @@
+"""Composants d'affichage du compte-rendu structuré dans Streamlit."""
+
 import json
 import re
 import ast
@@ -5,6 +7,7 @@ import streamlit as st
 
 def render_preview(raw_json: str):
     """Génère l'aperçu du compte-rendu final à partir du JSON brut."""
+    # Le nettoyage tolérant sert uniquement à l'affichage ; l'export reste strict.
     if not raw_json:
         return
         

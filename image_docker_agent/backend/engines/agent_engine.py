@@ -1,4 +1,4 @@
-
+"""Exécution en arrière-plan des crews et préparation des résultats d'analyse."""
 import threading
 import functools
 from io import BytesIO
@@ -33,6 +33,7 @@ from agents import (
 )
 
 def _try_build_docx(raw_json: str) -> tuple[bool, str | None]:
+    # Cette validation réutilise exactement le chemin de génération de l'export.
     try:
         structured = parse_redaction_json(raw_json)
         build_docx(structured)  # valide que la génération ne plante pas
@@ -42,6 +43,7 @@ def _try_build_docx(raw_json: str) -> tuple[bool, str | None]:
 
 
 def _run_analysis_job(job_id: str, req: AnalyzeRequest):
+    # Fonction cible du thread : aucune opération Streamlit ne doit y être faite.
     cfg = req.agent_config.model_dump()
 
     def on_task_complete(key: str, output):
@@ -112,6 +114,7 @@ def _run_analysis_job(job_id: str, req: AnalyzeRequest):
 
 
 def _job_to_response(job) -> JobStatusResponse:
+    # Conversion du dataclass interne vers le contrat Pydantic exposé par l'API.
     return JobStatusResponse(
         job_id=job.job_id,
         status=job.status,

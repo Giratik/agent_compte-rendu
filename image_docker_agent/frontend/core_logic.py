@@ -1,3 +1,5 @@
+"""Orchestration côté interface des analyses, révisions et réparations JSON."""
+
 import time
 import streamlit as st
 import requests
@@ -6,6 +8,7 @@ from utility.session_state_central_cr import SK, get, set as ss_set
 
 def execute_analysis(backend_url, transcript, agent_config, model_name, ollama_base_url, verbosity, user_input,):
     """Lance l'analyse initiale et gère la boucle de vérification des statuts."""
+    # Le polling maintient l'interface réactive pendant l'exécution de la crew.
     try:
         job = api.start_analysis(
             backend_url=backend_url,
@@ -104,6 +107,7 @@ def execute_analysis(backend_url, transcript, agent_config, model_name, ollama_b
 
 def apply_global_modifications(backend_url, model_name, ollama_base_url, verbosity, global_instructions, user_input):
     """Applique les modifications globales à l'ensemble des sections."""
+    # Chaque section est révisée séparément avant une nouvelle consolidation finale.
     try:
         editable_results = [r for r in get(SK.RESULTS) if r["key"] != "redacteur"]
 

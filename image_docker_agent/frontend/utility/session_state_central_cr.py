@@ -1,4 +1,4 @@
-# frontend/utility/session_state_central.py
+"""Registre centralisé de l'état Streamlit partagé entre les pages."""
 
 from typing import Any, Optional, Dict
 import streamlit as st
@@ -25,7 +25,7 @@ class SK:
     TOKEN_COUNT                  = "token_count"
 
     AGENT_META                   = "agent_meta"
-    AGENTS_META                  = "agents_meta"
+    AGENTS_INFO_META             = "agents_info_meta"
     AGENT_CONFIG                 = "agent_config"
 
     RESULTS                      = "results"
@@ -53,7 +53,7 @@ _DEFAULTS: dict[str, Any] = {
     SK.TRANSCRIPT_TEXT:              "",
     SK.TOKEN_COUNT:                  0,
 
-    SK.AGENTS_META:                  None,
+    SK.AGENTS_INFO_META:                  None,
     SK.AGENT_CONFIG:                 {},
     SK.AGENT_META:                   {},
 
@@ -79,6 +79,7 @@ _DEFAULTS: dict[str, Any] = {
 
 def init_session_state() -> None:
     """À appeler une seule fois au démarrage (Main.py)."""
+    # L'initialisation idempotente permet à chaque rerun de repartir du même état.
     for key, default in _DEFAULTS.items():
         if key not in st.session_state:
             st.session_state[key] = default() if callable(default) else default
@@ -155,10 +156,10 @@ def set_agent_config(config: Dict[str, Any]) -> None:
     set(SK.AGENT_CONFIG, config)
 
 def get_agents_meta() -> Optional[Dict[str, Any]]:
-    return get(SK.AGENTS_META)
+    return get(SK.AGENTS_INFO_META)
 
 def set_agents_meta(meta: Dict[str, Any]) -> None:
-    set(SK.AGENTS_META, meta)
+    set(SK.AGENTS_INFO_META, meta)
 
 
 # ─── Helpers — résultats ──────────────────────────────────────────────────────

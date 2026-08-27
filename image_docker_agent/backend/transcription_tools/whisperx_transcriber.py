@@ -1,4 +1,4 @@
-#backend/transcription_tools/utility_functions/whisperx_transcriber.py
+"""Client gRPC asynchrone du service externe WhisperX."""
 
 import asyncio
 import os
@@ -21,6 +21,7 @@ _stub = None
 
 def get_client():
     """Réutilise le channel gRPC entre appels plutôt que d'en recréer un à chaque fois."""
+    # Le stub est conservé pour réutiliser la connexion gRPC entre transcriptions.
     global _channel, _stub
     if _stub is None:
         _channel = grpc.insecure_channel(WHISPERX_SERVICE_ADDRESS)
@@ -103,4 +104,5 @@ def convert_audio_to_wav(input_path: str) -> str:
 
 
 async def convert_audio_to_wav_async(input_path: str) -> str:
+    """Déporte ffmpeg dans un thread pour ne pas bloquer la boucle asyncio."""
     return await asyncio.to_thread(convert_audio_to_wav, input_path)

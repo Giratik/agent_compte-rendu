@@ -1,9 +1,12 @@
+"""Définition de l'agent qui recense participants et absents."""
+
 from crewai import Agent, Task, LLM
 
 from .base import make_agent
 
 
 def build(llm: LLM, common_instructions: str) -> tuple[Agent, Task]:
+    """Construit l'agent et la tâche d'identification des personnes."""
     agent = make_agent(
         role="Analyste des participants",
         goal="Identifier avec précision toutes les personnes présentes à la réunion",

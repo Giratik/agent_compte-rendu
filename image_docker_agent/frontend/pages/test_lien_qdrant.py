@@ -1,3 +1,5 @@
+"""Page de diagnostic développeur pour vérifier le registre et le lexique Qdrant."""
+
 import streamlit as st
 import requests
 import json
@@ -22,4 +24,3 @@ st.write(default_tools)
 for element in default_tools:
     if element == "lexique":
         st.write(fetch_full_lexicon(element))
-

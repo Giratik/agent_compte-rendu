@@ -1,4 +1,4 @@
-#backend/engines/rag_engine.py
+"""Accès Qdrant et recherche hybride utilisée par les routes RAG."""
 
 import re
 import httpx
@@ -21,6 +21,7 @@ EMBEDDING_MODEL = os.environ.get("EMBEDDING_MODEL", "embeddinggemma:latest")
 # ─── CLIENTS ──────────────────────────────────────────────────────────────────
 
 def make_qdrant_client() -> QdrantClient:
+    """Construit un client configuré avec les paramètres du conteneur."""
     return QdrantClient(host=QDRANT_HOST, port=int(QDRANT_PORT))
 
 
@@ -70,6 +71,7 @@ def list_registry(qdrant_client: QdrantClient) -> list[dict]:
 
 
 def registry_for_tool_calling(client, role: str = "") -> list[dict]: #accès basé sur les rôles (RBAC)
+    """Filtre le registre selon l'état actif et le rôle du chatbot."""
     entries = list_registry(client)
     result = []
     for e in entries:
@@ -123,7 +125,7 @@ def retrieve_context_hybrid(
     use_expansion: bool,
     doc_date_filter: str = "",
 ) -> tuple[list[str], list[tuple], list[dict]]:
-    
+    """Combine recherche vectorielle et BM25, puis prépare les sources citées."""
     queries = [query]
     if use_expansion:
         queries = expand_query(ollama_client, model, query)

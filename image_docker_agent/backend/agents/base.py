@@ -32,6 +32,7 @@ def build_llm(model_name: str, base_url: str, temperature: float = 0.1) -> LLM:
 
 
 def make_agent(role: str, goal: str, backstory: str, llm: LLM) -> Agent:
+    """Applique les réglages communs aux agents spécialisés de la crew."""
     return Agent(
         role=role,
         goal=goal,
@@ -47,6 +48,7 @@ def make_agent(role: str, goal: str, backstory: str, llm: LLM) -> Agent:
 # Source de vérité unique pour l'ordre, les labels UI et les descriptions.
 # ---------------------------------------------------------------------------
 
+# L'ordre détermine à la fois l'exécution séquentielle et l'affichage frontend.
 AGENT_ORDER = [
     "participants",
     "objectif",

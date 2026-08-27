@@ -53,6 +53,7 @@ def build_crew(
     `verbosity` : "concis" (défaut) ou "detaille" — contrôle le niveau de
     détail demandé à l'agent rédacteur.
     """
+    # Toutes les tâches partagent le même LLM et sont exécutées dans l'ordre.
     llm = build_llm(model_name, base_url)
 
     if agent_config is None:
@@ -125,6 +126,7 @@ def build_revision_crew(
     qui le rend rapide et indépendant de AGENT_ORDER (utilisable aussi pour
     réviser la sortie JSON du rédacteur si besoin).
     """
+    # Cette crew isolée évite de recalculer le transcript pour une simple retouche.
     llm = build_llm(model_name, base_url)
 
     agent = make_agent(
@@ -174,6 +176,7 @@ def build_redaction_retry_crew(
     `analyses` : dict dont les clés sont un sous-ensemble de AGENT_ORDER
     (seuls les agents activés lors du run initial y figurent).
     """
+    # Les analyses existantes sont converties en contexte pour le seul rédacteur.
     llm = build_llm(model_name, base_url)
     redacteur_agent = build_redacteur_agent(llm, user_input)
 
@@ -213,6 +216,7 @@ def build_json_fix_crew(broken_json: str, error_report: str, model_name: str, ba
     docx_export.diagnose_json_error, pour corriger chirurgicalement l'endroit
     signalé sans réécrire tout le document.
     """
+    # Le diagnostic est transmis tel quel afin de limiter la correction au point fautif.
     llm = build_llm(model_name, base_url)
 
     correcteur_agent = make_agent(

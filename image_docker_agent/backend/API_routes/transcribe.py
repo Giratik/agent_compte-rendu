@@ -1,4 +1,4 @@
-#/backend/transcription_tools/routers/transcription.py
+"""Routes de transcription et de gestion de la file d'attente audio."""
 
 
 import os
@@ -16,6 +16,7 @@ router = APIRouter(prefix="/transcribe", tags=["Transcription"])
 
 @router.get("/queue-position/")
 async def get_queue_position(queue_token: str):
+    # Le frontend interroge cette route tant qu'un autre traitement occupe le slot.
     if not queue_token:
         raise HTTPException(status_code=400, detail="queue_token is required")
 
@@ -37,7 +38,7 @@ async def transcribe_audio(
     queue_token: str = Form(None),
     session_id: str = Form(None),
 ):
-    # Handle queue logic
+    # Une première requête réserve une place ; les suivantes reprennent son token.
     if not queue_token:
         # New request - add to queue
         # Generate session_id if not provided

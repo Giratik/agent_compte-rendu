@@ -1,4 +1,4 @@
-#frontend/agent_summary/script.py
+"""Affichage Streamlit du résumé, des corrections et de l'export Word."""
 
 import streamlit as st
 import requests
@@ -19,6 +19,7 @@ BACKEND_URL = os.environ.get("BACKEND_URL", "http://backend:8000")
 OLLAMA_MODEL = os.environ.get("OLLAMA_MODEL", "gemma4:e4b")
 
 def _sync_redaction(raw_json):
+    """Met à jour la ligne du rédacteur après une correction ou une relance."""
     ss_set(SK.RESULTS, [
         {**rr, "content": raw_json} if rr["key"] == "redacteur" else rr
         for rr in get(SK.RESULTS)
@@ -26,6 +27,7 @@ def _sync_redaction(raw_json):
 
 
 def render_agent_summary():
+    """Affiche le lancement de l'analyse puis l'aperçu et ses actions."""
     # --- Sidebar : Configuration et sélection des agents ---
     backend_url = BACKEND_URL
     ollama_base_url = OLLAMA_HOST

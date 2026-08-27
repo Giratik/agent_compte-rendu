@@ -22,6 +22,7 @@ class AgentConfig(BaseModel):
     redacteur: bool = True
 
 
+# Paramètres de connexion transmis au fournisseur LLM local.
 class LLMConfig(BaseModel):
     model_name: str = "gemma4:e4b"
     base_url: str = "http://ollama:11434"  # nom de service Docker par défaut
@@ -35,6 +36,7 @@ class AnalyzeRequest(BaseModel):
     user_input: str = ""
 
 
+# État d'une étape affichée pendant le traitement asynchrone.
 class JobStepStatus(BaseModel):
     key: str
     label: str
@@ -47,6 +49,7 @@ class SectionResult(BaseModel):
     content: str
 
 
+# Réponse complète utilisée par le frontend lors du polling d'un job.
 class JobStatusResponse(BaseModel):
     job_id: str
     status: str  # "running" | "done" | "error"
@@ -68,6 +71,7 @@ class ReviseRequest(BaseModel):
     llm: LLMConfig = Field(default_factory=LLMConfig)
 
 
+# Résultat minimal renvoyé après la révision d'une section.
 class ReviseResponse(BaseModel):
     new_text: str
 
@@ -79,6 +83,7 @@ class RedactionRetryRequest(BaseModel):
     user_input: str = ""
 
 
+# Sortie du rédacteur, avec l'état de génération du document Word.
 class RedactionResultResponse(BaseModel):
     raw_json: str
     docx_ok: bool
@@ -90,6 +95,7 @@ class JsonFixRequest(BaseModel):
     llm: LLMConfig = Field(default_factory=LLMConfig)
 
 
+# Requêtes dédiées au diagnostic local ou à la construction du document.
 class JsonDiagnoseRequest(BaseModel):
     raw_json: str
 
@@ -103,7 +109,7 @@ class DocxBuildRequest(BaseModel):
     raw_json: str
 
 
-# Pydantic model
+# Requête de modification du compte-rendu JSON complet.
 class RedactionReviseRequest(BaseModel):
     current_raw_json: str
     instructions: str

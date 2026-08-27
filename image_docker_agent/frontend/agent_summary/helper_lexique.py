@@ -1,3 +1,5 @@
+"""Enrichissement optionnel du transcript à partir du lexique RAG."""
+
 import re
 
 def enrich_transcript_with_acronyms(transcript: str, lexique_utile: list) -> str:

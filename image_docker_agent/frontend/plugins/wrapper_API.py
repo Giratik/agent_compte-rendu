@@ -20,12 +20,14 @@ BASE_URL = os.getenv("API_URL", os.getenv("RAG_API_URL", os.getenv("BACKEND_URL"
 # ─── helpers ──────────────────────────────────────────────────────────────────
  
 def _get(path: str, **kwargs) -> Any:
+    """Effectue une lecture HTTP et renvoie directement le JSON de l'API."""
     resp = requests.get(f"{BASE_URL}{path}", **kwargs)
     resp.raise_for_status()
     return resp.json()
  
  
 def _post(path: str, payload: dict, **kwargs) -> Any:
+    """Effectue une requête JSON et centralise la vérification d'erreur HTTP."""
     resp = requests.post(f"{BASE_URL}{path}", json=payload, **kwargs)
     resp.raise_for_status()
     return resp.json()
@@ -40,12 +42,13 @@ def list_collections_qdrant() -> List[str]:
     return _get("/rag/collections")["collections"]
 
 def get_registry_collection():
-   try:
-       registry_entries = _get("/rag/registry_get")
-       return registry_entries# => retourne directement la liste des entrées
-   except Exception as e:
-       print(f"Erreur registry : {e}")
-       return []
+    """Récupère le registre filtré par rôle exposé par le backend."""
+    try:
+        registry_entries = _get("/rag/registry_get")
+        return registry_entries# => retourne directement la liste des entrées
+    except Exception as e:
+        print(f"Erreur registry : {e}")
+        return []
  
  
 def list_generative_models() -> List[str]:
@@ -90,6 +93,7 @@ def retrieve_context_hybrid(
     use_expansion: bool = False,
     doc_date_filter: str = "",
 ) -> tuple[List[str], List[str], List[Dict[str, Any]]]:
+    """Délègue la recherche hybride au moteur RAG via son endpoint HTTP."""
     data = _post("/rag/search", {
         "collection_name": collection_name,
         "query": query,
@@ -114,6 +118,7 @@ def stream_answer(
     context_size: int,
     chat_history: Optional[List[Dict[str, str]]] = None,
 ) -> Generator[str, None, None]:
+    """Diffuse progressivement la réponse backend au fur et à mesure des chunks."""
     payload = {
         "system_prompt": system_prompt,
         "query": query,
@@ -194,12 +199,14 @@ def extract_citations(response: str) -> tuple[str, List[str]]:
 
 # Côté frontend / wrapper_API.py
 def get_available_collection_names() -> list[str]:
+    """Extrait les noms utilisables par l'interface depuis les entrées du registre."""
     response = get_registry_collection()  # appel HTTP existant vers /rag/registry_get
     return [entry["nom"] for entry in response.get("registry", [])]
 
 
 
 def fetch_full_lexicon(collection_name):
+    """Charge le texte complet d'un lexique pour enrichir le transcript."""
     # Remplacez par l'URL de votre API
     url = f"{BASE_URL}/rag/lexique/{collection_name}" 
 

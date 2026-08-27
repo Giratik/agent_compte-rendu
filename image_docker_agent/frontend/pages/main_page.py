@@ -1,3 +1,5 @@
+"""Page principale réunissant la saisie du transcript et son analyse."""
+
 import streamlit as st
 import requests
 
@@ -11,6 +13,7 @@ user_input = st.text_area(label= "écrivez ici des instructions de rédaction po
 ss_set(SK.USER_INPUT, user_input)
 render_transcriber()
 
+# Le résumé n'est rendu qu'après la présence d'un transcript exploitable.
 if get(SK.TRANSCRIPT_TEXT):
     # --- AFFICHAGE ET RÉSUMÉ ---
     render_agent_summary()

@@ -1,9 +1,12 @@
+"""Définition de l'agent qui relève les risques et questions ouvertes."""
+
 from crewai import Agent, Task, LLM
 
 from .base import make_agent
 
 
 def build(llm: LLM, common_instructions: str) -> tuple[Agent, Task]:
+    """Construit l'agent et la tâche d'analyse des blocages."""
     agent = make_agent(
         role="Analyste des points de blocage",
         goal="Repérer les désaccords, risques ou questions restées en suspens",

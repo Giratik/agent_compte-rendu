@@ -10,6 +10,7 @@ import requests
 DEFAULT_TIMEOUT = 600
 
 
+# Configuration et lancement du job asynchrone d'analyse.
 def get_agents_config(backend_url: str) -> dict:
     r = requests.get(f"{backend_url}/agent/config", timeout=30)
     r.raise_for_status()
@@ -43,6 +44,7 @@ def poll_job(backend_url: str, job_id: str) -> dict:
     return r.json()
 
 
+# Appels de révision et de relance du rédacteur.
 def revise_section(
     backend_url: str,
     section_name: str,

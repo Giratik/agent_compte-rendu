@@ -1,4 +1,4 @@
-
+"""Routes FastAPI pour piloter les agents et l'export du compte-rendu."""
 
 import threading
 import functools
@@ -49,6 +49,7 @@ router = APIRouter(prefix="/agent", tags=["Agent tools"])
 
 @router.get("/config")
 def get_agents_config():
+    # Le frontend utilise ce registre pour construire ses cases à cocher.
     return {
         "agent_order": AGENT_ORDER,
         "agent_meta": AGENT_META,
@@ -62,6 +63,7 @@ def get_agents_config():
 
 @router.post("/analyze", response_model=JobStatusResponse)
 def analyze(req: AnalyzeRequest):
+    # Le calcul est déporté dans un thread afin de rendre la main immédiatement.
     cfg = req.agent_config.model_dump()
     used_keys = [k for k in AGENT_ORDER if cfg.get(k)]
     if not used_keys:
@@ -83,6 +85,7 @@ def analyze(req: AnalyzeRequest):
 
 @router.get("/jobs/{job_id}", response_model=JobStatusResponse)
 def get_job(job_id: str):
+    # Endpoint de polling : il expose l'état sans relancer le traitement.
     job = job_store.get(job_id)
     if not job:
         raise HTTPException(404, "Job introuvable.")
@@ -96,6 +99,7 @@ def get_job(job_id: str):
 
 @router.post("/revise", response_model=ReviseResponse)
 def revise(req: ReviseRequest):
+    # Une révision porte sur une seule section et reste volontairement synchrone.
     try:
         crew = build_revision_crew(
             section_name=req.section_name,
@@ -119,6 +123,7 @@ import traceback
 
 @router.post("/redaction/retry", response_model=RedactionResultResponse)
 def redaction_retry(req: RedactionRetryRequest):
+    # Relance uniquement la consolidation pour éviter de recalculer les analyses.
     try:
         crew = build_redaction_retry_crew(
             analyses=req.analyses,
@@ -139,6 +144,7 @@ def redaction_retry(req: RedactionRetryRequest):
 
 @router.post("/redaction/fix", response_model=RedactionResultResponse)
 def redaction_fix(req: JsonFixRequest):
+    # Le correcteur LLM n'est appelé que si le diagnostic détecte une erreur.
     error_report = diagnose_json_error(req.broken_json)
     if error_report is None:
         docx_ok, docx_error = _try_build_docx(req.broken_json)
@@ -165,12 +171,14 @@ def redaction_fix(req: JsonFixRequest):
 
 @router.post("/docx/diagnose", response_model=JsonDiagnoseResponse)
 def docx_diagnose(req: JsonDiagnoseRequest):
+    # Ce diagnostic local permet au frontend d'afficher la position de l'erreur.
     report = diagnose_json_error(req.raw_json)
     return JsonDiagnoseResponse(valid=report is None, error_report=report)
 
 
 @router.post("/docx/build")
 def docx_build(req: DocxBuildRequest):
+    # La réponse en flux évite de conserver un fichier Word sur le disque.
     try:
         structured = parse_redaction_json(req.raw_json)
         buffer = build_docx(structured)
@@ -186,6 +194,6 @@ def docx_build(req: DocxBuildRequest):
 
 @router.get("/health")
 def health():
+    # Sonde légère utilisée par l'orchestrateur pour vérifier la disponibilité.
     return {"status": "ok"}
-
 

@@ -1,9 +1,12 @@
+"""Définition de l'agent reliant les outils cités aux chiffres pertinents."""
+
 from crewai import Agent, Task, LLM
 
 from .base import make_agent
 
 
 def build(llm: LLM, common_instructions: str) -> tuple[Agent, Task]:
+    """Construit l'agent et son format de sortie outils/chiffres."""
     agent = make_agent(
         role="Analyste des outils et chiffres",
         goal=(

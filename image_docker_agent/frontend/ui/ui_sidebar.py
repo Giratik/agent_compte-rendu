@@ -1,3 +1,5 @@
+"""Construction de la barre latérale et de la configuration des agents."""
+
 import os
 import streamlit as st
 import requests
@@ -11,6 +13,7 @@ OLLAMA_MODEL = os.environ.get("OLLAMA_MODEL", "gemma4:e4b")
 
 def render_sidebar():
     """Affiche la barre latérale et retourne les paramètres de configuration."""
+    # Les métadonnées et valeurs par défaut sont récupérées une seule fois.
     with st.sidebar:
         st.markdown("### ⚙️ Options")
         st.toggle(
@@ -36,21 +39,21 @@ def render_sidebar():
 
         # --- Config des agents, récupérée dynamiquement depuis le backend ---
         st.header("🤖 Configuration des agents")
-        if get(SK.AGENTS_META) is None:
+        if get(SK.AGENTS_INFO_META) is None:
             try:
-                ss_set(SK.AGENTS_META, api.get_agents_config(backend_url))
+                ss_set(SK.AGENTS_INFO_META, api.get_agents_config(backend_url))
             except requests.RequestException as e:
-                ss_set(SK.AGENTS_META, None)
+                ss_set(SK.AGENTS_INFO_META, None)
                 st.error(f"Impossible de joindre le backend ({backend_url}) : {e}")
 
         agent_order = []
-        if get(SK.AGENTS_META):
-            agent_order = get(SK.AGENTS_META)["agent_order"]
-            agent_meta  = get(SK.AGENTS_META)["agent_meta"]
+        if get(SK.AGENTS_INFO_META):
+            agent_order = get(SK.AGENTS_INFO_META)["agent_order"]
+            agent_meta  = get(SK.AGENTS_INFO_META)["agent_meta"]
 
             # dict vide = pas encore initialisé (DEFAULTS = {})
             if not get(SK.AGENT_CONFIG):
-                ss_set(SK.AGENT_CONFIG, get(SK.AGENTS_META)["default_agent_config"].copy())
+                ss_set(SK.AGENT_CONFIG, get(SK.AGENTS_INFO_META)["default_agent_config"].copy())
 
             agent_config = get(SK.AGENT_CONFIG).copy()
             for key in agent_order:

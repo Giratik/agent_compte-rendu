@@ -1,9 +1,12 @@
+"""Définition de l'agent chargé d'extraire les actions à réaliser."""
+
 from crewai import Agent, Task, LLM
 
 from .base import make_agent
 
 
 def build(llm: LLM, common_instructions: str) -> tuple[Agent, Task]:
+    """Construit l'agent et la tâche d'extraction des actions."""
     agent = make_agent(
         role="Analyste des actions",
         goal="Lister les actions à faire (tâches), avec responsable et échéance si mentionnés",

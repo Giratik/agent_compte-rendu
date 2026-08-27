@@ -1,9 +1,12 @@
+"""Définition de l'agent qui synthétise les sujets abordés."""
+
 from crewai import Agent, Task, LLM
 
 from .base import make_agent
 
 
 def build(llm: LLM, common_instructions: str) -> tuple[Agent, Task]:
+    """Construit l'agent et la tâche de synthèse des points clés."""
     agent = make_agent(
         role="Analyste des points clés",
         goal="Identifier les principaux sujets et points abordés pendant la réunion",

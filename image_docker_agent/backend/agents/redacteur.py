@@ -8,6 +8,7 @@ from .base import make_agent
 
 
 def build_agent(llm: LLM, user_input = "") -> Agent:
+    """Construit le rédacteur final qui consolide les analyses disponibles."""
     return make_agent(
         role="Rédacteur final",
         goal=(
@@ -30,6 +31,7 @@ def build_agent(llm: LLM, user_input = "") -> Agent:
 
 def build_dynamic_json_schema(active_keys: list[str]) -> str:
     """Construit dynamiquement le schéma JSON en fonction des agents activés."""
+    # Le schéma reste aligné sur les agents activés pour éviter les champs inventés.
     schema_parts = [
         '  "titre": "titre court du compte-rendu"',
         '  "date": "date de la réunion si mentionnée, sinon chaîne vide"',

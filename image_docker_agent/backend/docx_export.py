@@ -13,6 +13,7 @@ from docx.enum.text import WD_ALIGN_PARAGRAPH
 
 
 def _strip_fences(raw: str) -> str:
+    # Les balises Markdown éventuelles sont retirées avant le parsing JSON.
     text = raw.strip()
     text = re.sub(r"^```(json)?", "", text.strip(), flags=re.IGNORECASE).strip()
     text = re.sub(r"```$", "", text.strip()).strip()

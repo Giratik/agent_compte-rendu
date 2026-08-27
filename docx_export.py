@@ -13,6 +13,8 @@ from docx.enum.text import WD_ALIGN_PARAGRAPH
 
 
 def _strip_fences(raw: str) -> str:
+    # Les modèles peuvent entourer le JSON de balises Markdown ; on les retire
+    # avant tout passage au parseur strict.
     text = raw.strip()
     text = re.sub(r"^```(json)?", "", text.strip(), flags=re.IGNORECASE).strip()
     text = re.sub(r"```$", "", text.strip()).strip()

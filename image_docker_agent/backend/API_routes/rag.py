@@ -1,4 +1,4 @@
-
+"""Routes d'exposition du registre Qdrant, de la recherche et du lexique."""
 
 from fastapi import APIRouter, HTTPException, UploadFile, File, Query
 from fastapi.responses import StreamingResponse
@@ -45,6 +45,7 @@ router = APIRouter(prefix="/rag", tags=["RAG Engine"])
         }
     })
 def get_registry_endpoint_evolve():
+    # Le registre complet est lu pour garantir son initialisation avant filtrage.
     client = make_qdrant_client()
     try:
         all_entries = list_registry(client)
@@ -56,6 +57,8 @@ def get_registry_endpoint_evolve():
 
 
 class SearchRequest(BaseModel):
+    """Paramètres validés d'une recherche hybride dans une collection."""
+
     collection_name: str = Query(..., description="Name of the collection to search in")
     query: str = Query(..., description="Search query text")
     model: str = Query(..., description="Generative model to use for search")
@@ -117,9 +120,9 @@ class SearchRequest(BaseModel):
         }
     })
 def search_endpoint(req: SearchRequest):
+    # La route ne contient pas l'algorithme : elle adapte la requête au moteur RAG.
     qdrant_client = make_qdrant_client()
     try:
-        # ⬅️ Changement ici : plus d'objet "collection", on utilise le client et la string
         contexts, sources, detailed_chunks = retrieve_context_hybrid(
             qdrant_client,
             req.collection_name,
@@ -154,6 +157,7 @@ def get_full_lexicon(collection_name: str):
     Parcourt (scroll) l'intégralité d'une collection Qdrant pour récupérer 
     tout son contenu (payload), sans récupérer les vecteurs pour économiser la bande passante.
     """
+    # Le scroll paginé permet de récupérer un lexique complet sans vecteurs.
     client = make_qdrant_client()
     try:
         all_records = []

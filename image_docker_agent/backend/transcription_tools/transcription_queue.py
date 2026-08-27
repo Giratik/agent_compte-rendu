@@ -7,6 +7,8 @@ import uuid
 import time
 
 class TranscriptionQueue:
+    """Sérialise les transcriptions et expire les demandes qui ne répondent plus."""
+
     def __init__(self):
         self.queue = deque()
         self.current_user: Optional[str] = None
@@ -68,6 +70,7 @@ class TranscriptionQueue:
 
     async def acquire_transcription_slot(self, queue_token: str) -> bool:
         """Try to acquire transcription slot, return True if acquired, False if not found in queue"""
+        # Un seul token peut devenir utilisateur courant à la fois.
         async with self.lock:
             if queue_token in self.last_seen:
                 self.last_seen[queue_token] = time.time()
@@ -88,6 +91,7 @@ class TranscriptionQueue:
 
     async def release_transcription_slot(self):
         """Release the current transcription slot"""
+        # La libération nettoie aussi le heartbeat associé au traitement terminé.
         async with self.lock:
             # Nettoyage du dictionnaire heartbeat pour ce token
             if self.current_user_token in self.last_seen:

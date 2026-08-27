@@ -21,6 +21,8 @@ from typing import Optional
 
 @dataclass
 class Job:
+    """Représente la progression et les résultats d'une analyse en cours."""
+
     job_id: str
     total_steps: int
     status: str = "running"  # running | done | error
@@ -38,11 +40,14 @@ class Job:
 
 
 class JobStore:
+    """Stocke les jobs et synchronise les accès entre threads du backend."""
+
     def __init__(self):
         self._jobs: dict[str, Job] = {}
         self._lock = threading.Lock()
 
     def create(self, total_steps: int, planned_steps: list[dict]) -> Job:
+        # Le job est publié sous verrou avant que le thread d'analyse ne démarre.
         job_id = str(uuid.uuid4())
         job = Job(job_id=job_id, total_steps=total_steps, steps=planned_steps)
         with self._lock:
@@ -54,6 +59,7 @@ class JobStore:
             return self._jobs.get(job_id)
 
     def mark_step_done(self, job_id: str, key: str):
+        # Le callback CrewAI ne modifie que l'étape correspondante.
         with self._lock:
             job = self._jobs.get(job_id)
             if not job:
@@ -64,6 +70,7 @@ class JobStore:
                     break
 
     def finish(self, job_id: str, **fields):
+        # Les résultats sont regroupés avant de basculer l'état final du job.
         with self._lock:
             job = self._jobs.get(job_id)
             if not job:

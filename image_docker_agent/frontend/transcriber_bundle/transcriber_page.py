@@ -1,4 +1,4 @@
-# frontend/transcriber_bundle/transcriber_page.py
+"""Composant Streamlit de saisie, mise en file et transcription des médias."""
 
 import streamlit as st
 import requests
@@ -13,6 +13,7 @@ WHISPER_MODEL = os.environ.get("WHISPER_MODEL", "large-v3")
 
 def render_transcriber():
     """Plugin UI autonome pour la transcription"""
+    # Le composant gère trois sources : média, fichier texte ou collage direct.
     st.subheader("🎙️ Module de Transcription")
     
     input_mode = st.radio(
@@ -104,6 +105,7 @@ def render_transcriber():
             st.rerun()
 
         # --- 4. POLLING DE LA FILE D'ATTENTE ---
+        # Une relance Streamlit permet de rafraîchir la position sans bloquer l'UI.
         if en_file_attente and not get(SK.IS_TRANSCRIBING):
             if get(SK.TRANSCRIPTION_QUEUE_POSITION) is not None and get(SK.TRANSCRIPTION_QUEUE_POSITION) > 1:
                 st.info(f"⏳ Vous êtes en position **{get(SK.TRANSCRIPTION_QUEUE_POSITION)}** dans la file d'attente. Veuillez patienter...")
