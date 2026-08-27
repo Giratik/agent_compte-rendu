@@ -10,10 +10,9 @@ from plugins.wrapper_API import get_available_collection_names
 from ui.ui_sidebar import render_sidebar
 
 LOGO_PATH = "ressources/logo_EDP/Eau_de_Paris_bleu.svg.png"
-ICONS_PATH = "ressources/icones"
 IS_DEV = os.environ.get("IS_DEV", "no")
 
-st.set_page_config(page_title="Analyse de compte-rendu CrewAI", page_icon="📄", layout="wide")
+st.set_page_config(page_title="Analyse de compte-rendu CrewAI", page_icon=":material/robot_2:", layout="wide")
 if os.path.exists(LOGO_PATH):
     st.logo(LOGO_PATH)
 
